@@ -2034,6 +2034,59 @@ EG_fillTris(egObject *body, int iFace, egObject *face, egObject *tess,
     ts->loop[i] = ntot;
   }
 
+
+  int n_vtx = np-1;
+  printf("Vertices np = %d\n", n_vtx);
+  printf("Vertices ntot = %d\n", ntot);
+  char filename[999];
+  sprintf(filename, "understand.vtk");
+
+  FILE *f = fopen(filename, "w");
+
+  fprintf(f, "# vtk DataFile Version 2.0\n");
+  fprintf(f, "mesh\n");
+  fprintf(f, "ASCII\n");
+  fprintf(f, "DATASET UNSTRUCTURED_GRID\n");
+
+  fprintf(f, "POINTS %d double\n", n_vtx);
+  for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
+    for (int j = 0; j < 3; j++) {
+      fprintf(f, "%.20lf ", ts->verts[i_vtx].xyz[j]);
+    }
+    fprintf(f, "\n");
+  }
+
+  fprintf(f, "POINT_DATA %d\n", n_vtx);
+
+  fprintf(f, "FIELD vtx_field %d\n", 3);
+
+  fprintf(f, "%s 1 %d int\n", "loop_number", n_vtx);
+  for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
+    fprintf(f, "%d \n", ts->verts[i_vtx].loop);
+  }
+  fprintf(f, "\n");
+
+  fprintf(f, "%s 1 %d int\n", "edge_number", n_vtx);
+  for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
+    fprintf(f, "%d \n", ts->verts[i_vtx].edge);
+  }
+  fprintf(f, "\n");
+
+  fprintf(f, "%s 1 %d int\n", "vertex_number", n_vtx);
+  for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
+    fprintf(f, "%d \n", ts->verts[i_vtx].index);
+  }
+  fprintf(f, "\n");
+
+  fclose(f);
+
+
+
+  printf("Vertices nfig8 = %d\n", nfig8);
+
+
+
+
   /* handle Loops that touch each other at a Node */
   for (mm = 0; mm < nfig8; mm++) {
     mp = 0;
@@ -2143,6 +2196,47 @@ EG_fillTris(egObject *body, int iFace, egObject *face, egObject *tess,
   }
 
   n = EG_fillArea(nloop, ts->loop, uvs, tris, &nfig8, 0, fa);
+
+
+
+  printf("n_tri = %d\n", n);
+
+
+  sprintf(filename, "triangles.vtk");
+
+  f = fopen(filename, "w");
+
+  fprintf(f, "# vtk DataFile Version 2.0\n");
+  fprintf(f, "mesh\n");
+  fprintf(f, "ASCII\n");
+  fprintf(f, "DATASET UNSTRUCTURED_GRID\n");
+
+  fprintf(f, "POINTS %d double\n", np);
+  for (int i_vtx = 0; i_vtx < np; i_vtx++) {
+    for (int j = 0; j < 3; j++) {
+      fprintf(f, "%.20lf ", ts->verts[i_vtx].xyz[j]);
+    }
+    fprintf(f, "\n");
+  }
+
+  fprintf(f, "CELLS %d %d\n", n, n + 3*n);
+  for (int i_elt = 0; i_elt < n; i_elt++) {
+    fprintf(f, "%d\n", 3);
+    for (int i = 3*i_elt; i < 3*(i_elt+1); i++) {
+      fprintf(f, "%d ", tris[i]-1);
+    }
+    fprintf(f, "\n");
+  }
+
+  fprintf(f, "CELL_TYPES %d\n", n);
+  for (int i_elt = 0; i_elt < n; i_elt++) {
+    fprintf(f, "%d\n", 5);
+  }
+
+  fclose(f);
+
+
+
 
   /* adjust for figure 8 configurations */
   if (nfig8 != 0) {
@@ -2334,6 +2428,74 @@ EG_fillTris(egObject *body, int iFace, egObject *face, egObject *tess,
   if (stat == EGADS_SUCCESS) {
     /* set it in the tessellation structure */
     EG_updateTris(ts, btess, iFace);
+
+
+    sprintf(filename, "face_%d_tesselation.vtk", iFace);
+
+    f = fopen(filename, "w");
+
+    fprintf(f, "# vtk DataFile Version 2.0\n");
+    fprintf(f, "mesh\n");
+    fprintf(f, "ASCII\n");
+    fprintf(f, "DATASET UNSTRUCTURED_GRID\n");
+
+    n_vtx = btess->tess2d[iFace-1].npts;
+    fprintf(f, "POINTS %d double\n", n_vtx);
+    for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
+      for (int j = 0; j < 3; j++) {
+        fprintf(f, "%.20lf ", btess->tess2d[iFace-1].xyz[3*i_vtx+j]);
+      }
+      fprintf(f, "\n");
+    }
+
+    int n = btess->tess2d[iFace-1].ntris;
+    fprintf(f, "CELLS %d %d\n", n, n + 3*n);
+    for (int i_elt = 0; i_elt < n; i_elt++) {
+      fprintf(f, "%d\n", 3);
+      for (int i = 3*i_elt; i < 3*(i_elt+1); i++) {
+        fprintf(f, "%d ", btess->tess2d[iFace-1].tris[i]-1);
+      }
+      fprintf(f, "\n");
+    }
+
+    fprintf(f, "CELL_TYPES %d\n", n);
+    for (int i_elt = 0; i_elt < n; i_elt++) {
+      fprintf(f, "%d\n", 5);
+    }
+
+    
+    fprintf(f, "POINT_DATA %d\n", n_vtx);
+
+    fprintf(f, "FIELD vtx_field %d\n", 4);
+
+    fprintf(f, "%s 1 %d double\n", "u", n_vtx);
+    for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
+      fprintf(f, "%.20lf \n", btess->tess2d[iFace-1].uv[2*i_vtx]);
+    }
+    fprintf(f, "\n");
+
+    fprintf(f, "%s 1 %d double\n", "v", n_vtx);
+    for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
+      fprintf(f, "%.20lf \n", btess->tess2d[iFace-1].uv[2*i_vtx+1]);
+    }
+    fprintf(f, "\n");
+
+    fprintf(f, "%s 1 %d int\n", "ptype", n_vtx);
+    for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
+      fprintf(f, "%d \n", btess->tess2d[iFace-1].ptype[i_vtx]);
+    }
+    fprintf(f, "\n");
+
+    fprintf(f, "%s 1 %d int\n", "pindex", n_vtx);
+    for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
+      fprintf(f, "%d \n", btess->tess2d[iFace-1].pindex[i_vtx]);
+    }
+    fprintf(f, "\n");
+
+    fclose(f);
+
+
+
   }
 
   return stat;
@@ -4172,6 +4334,126 @@ EG_edgeThread(void *struc)
   /* exhausted all work -- exit */
   if (ID != tthread->master) EMP_ThreadExit();
 }
+
+
+
+void
+_write_edge_vtk
+(
+  const char                 *filename,
+  const int                   n_vtx,
+  const double                vtx_coord[],
+  // const PDM_g_num_t           vtx_g_num[],
+  // const int                   n_elt,
+  // const PDM_Mesh_nodal_elt_t  elt_type[],
+  // const int                   elt_vtx_idx[],
+  // const int                   elt_vtx[],
+  // const PDM_g_num_t           elt_g_num[],
+  // const int                   n_elt_field,
+  // const char                 *elt_field_name[],
+  // const double               *elt_field[],
+  // const int                   n_vtx_field,
+  // const char                 *vtx_field_name[],
+  const double               vtx_field[]
+)
+{
+  int n_vtx_field = 1;
+
+  FILE *f = fopen(filename, "w");
+
+  fprintf(f, "# vtk DataFile Version 2.0\n");
+  fprintf(f, "mesh\n");
+  fprintf(f, "ASCII\n");
+  fprintf(f, "DATASET UNSTRUCTURED_GRID\n");
+
+  fprintf(f, "POINTS %d double\n", n_vtx);
+  for (int i = 0; i < n_vtx; i++) {
+    for (int j = 0; j < 3; j++) {
+      fprintf(f, "%.20lf ", vtx_coord[3*i+j]);
+    }
+    fprintf(f, "\n");
+  }
+
+  // fprintf(f, "CELLS %d %d\n", n_elt, n_elt + elt_vtx_idx[n_elt]);
+  // for (int i_elt = 0; i_elt < n_elt; i_elt++) {
+  //   fprintf(f, "%d\n", elt_vtx_idx[i_elt+1] - elt_vtx_idx[i_elt]);
+  //   for (int i = elt_vtx_idx[i_elt]; i < elt_vtx_idx[i_elt+1]; i++) {
+  //     fprintf(f, "%d ", elt_vtx[i] - 1);
+  //   }
+  //   fprintf(f, "\n");
+  // }
+
+  // fprintf(f, "CELL_TYPES %d\n", n_elt);
+  // for (int i_elt = 0; i_elt < n_elt; i_elt++) {
+  //   int vtk_elt_type = _vtk_elt_type(elt_type[i_elt], 1);
+  //   fprintf(f, "%d\n", vtk_elt_type);
+  // }
+
+
+  // if (vtx_g_num != NULL) {
+  //   fprintf(f, "POINT_DATA %d\n", n_vtx);
+  //   fprintf(f, "SCALARS vtx_gnum long 1\n");
+  //   fprintf(f, "LOOKUP_TABLE default\n");
+  //   for (int i = 0; i < n_vtx; i++) {
+  //     fprintf(f, PDM_FMT_G_NUM"\n", vtx_g_num[i]);
+  //   }
+  // }
+
+  // if (n_vtx_field > 0) {
+  //   assert (vtx_field != NULL);
+
+  //   if (vtx_g_num == NULL) {
+    fprintf(f, "POINT_DATA %d\n", n_vtx);
+  //   }
+
+    fprintf(f, "FIELD vtx_field %d\n", n_vtx_field);
+    for (int i = 0; i < n_vtx_field; i++) {
+      // assert (vtx_field[i] != NULL);
+      // assert (vtx_field_name[i] != NULL);
+
+      // fprintf(f, "%s 1 %d double\n", vtx_field_name[i], n_vtx);
+      fprintf(f, "%s 1 %d double\n", "ParamT", n_vtx);
+      for (int j = 0; j < n_vtx; j++) {
+        // fprintf(f, "%lf ", vtx_field[i][j]);
+        fprintf(f, "%.20lf \n", vtx_field[j]);
+      }
+      fprintf(f, "\n");
+    }
+  // }
+
+
+  // if (elt_g_num != NULL) {
+  //   fprintf(f, "CELL_DATA %d\n", n_elt);
+  //   fprintf(f, "SCALARS elt_gnum long 1\n");
+  //   fprintf(f, "LOOKUP_TABLE default\n");
+  //   for (int i = 0; i < n_elt; i++) {
+  //     fprintf(f, PDM_FMT_G_NUM"\n", elt_g_num[i]);
+  //    }
+  // }
+
+  // if (n_elt_field > 0) {
+  //   assert (elt_field != NULL);
+
+  //   if (elt_g_num == NULL) {
+  //     fprintf(f, "CELL_DATA %d\n", n_elt);
+  //   }
+
+  //   fprintf(f, "FIELD elt_field %d\n", n_elt_field);
+  //   for (int i = 0; i < n_elt_field; i++) {
+  //     // assert (elt_field[i] != NULL);
+  //     assert (elt_field_name[i] != NULL);
+
+  //     fprintf(f, "%s 1 %d double\n", elt_field_name[i], n_elt);
+  //     for (int j = 0; j < n_elt; j++) {
+  //       fprintf(f, "%lf ", elt_field[i][j]);
+  //     }
+  //     fprintf(f, "\n");
+  //   }
+  // }
+
+  fclose(f);
+}
+
 
 
 __HOST_AND_DEVICE__ static int
