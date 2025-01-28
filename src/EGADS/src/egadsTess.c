@@ -14,6 +14,7 @@
 #include <math.h>
 #include <float.h>	     /* Needed in some systems for DBL_MAX definition */
 #include <limits.h>	     /* Needed in other systems for DBL_EPSILON */
+#include <assert.h>
 
 #ifdef __CUDACC__
 #include "liteString.h"
@@ -93,6 +94,8 @@ __PROTO_H_AND_D__ int  EG_evaluate( const egObject *geom,
                                     /*@null@*/ const double *param,
                                     double *result );
 __PROTO_H_AND_D__ int  EG_invEvaluate( const egObject *geom, double *xyz,
+                                       double *param, double *result );
+__PROTO_H_AND_D__ int  EG_invEvaluateGuess( const egObject *geom, double *xyz,
                                        double *param, double *result );
 __PROTO_H_AND_D__ int  EG_arcLength( const egObject *geom, double t1, double t2,
                                      double *result );
@@ -5975,7 +5978,152 @@ EG_tessThread(void *struc)
 
 
 __HOST_AND_DEVICE__ int
-EG_makeTessBody(egObject *object, double *paramx, egObject **tess)
+_compute_periodicity(egObject *object,
+                     int n_pairs, int **pairs, double **homo_matrices,
+                     int **pair_signs_out,
+                     int **node_pairs_out)
+{
+  // printf("object->oclass = %d\n", object->oclass);
+  int stat, oclass, mtype;
+  double limits[2];
+  int nedge, nface, nshell, nmodel;
+  egObject **edges, **faces, **shells, **models;
+  egObject *geom;
+  stat = EG_getBodyTopos(object, NULL,  MODEL, &nmodel, &models);
+  stat = EG_getBodyTopos(object, NULL,  SHELL, &nshell, &shells);
+  stat = EG_getBodyTopos(object, NULL,  FACE , &nface , &faces);
+  stat = EG_getBodyTopos(object, NULL,  EDGE , &nedge , &edges);
+  // printf("nmodel = %d\n", nmodel);
+  // printf("nshell = %d\n", nshell);
+  // printf("nface  = %d\n", nface);
+  // printf("nedge  = %d\n", nedge);
+
+  // TODO: trouver le if dim==2
+  // printf("nedge = %d\n", nedge);
+  // printf("n_pairs = %d\n", n_pairs);
+
+
+  int *pair_signs = calloc(  n_pairs, sizeof(int));
+  int *node_pairs = calloc(4*n_pairs, sizeof(int));
+
+  for (int i_pair=0; i_pair<n_pairs; ++i_pair) {
+    int src = pairs[i_pair][0];  
+    int tgt = pairs[i_pair][1];
+    // printf("Looking edges = %d %d\n", src, tgt);
+
+    double *hm = homo_matrices[i_pair];
+
+    egObject *edge_src = edges[src];
+    egObject *edge_tgt = edges[tgt];
+
+    int *senses;
+    int nnode_src;
+    egObject **nodes_src;
+    stat = EG_getTopology(edge_src, &geom, &oclass, &mtype, limits,
+                        &nnode_src, &nodes_src, &senses);
+
+    int nnode_tgt;
+    egObject **nodes_tgt;
+    stat = EG_getTopology(edge_tgt, &geom, &oclass, &mtype, limits,
+                        &nnode_tgt, &nodes_tgt, &senses);
+    assert(nnode_src==2); assert(nnode_tgt==2);
+    // TODO: cercle ?? vérifier n_node=2 ?
+
+    int src_tgt_node_pairs[] = {-1,-1};
+    // int *node_pairs = malloc(n_pairs*2*sizeof(int)); // Warning size valid for edges only
+    // for (int i_array=0; i_array<n_pairs*2; ++i_array) {
+    //   node_pairs[i_array] = -1;
+    // }
+
+    int nmatch = 0;
+    for (int i_node_src=0; i_node_src<nnode_src; ++i_node_src) {
+      int ntype, ndum;
+      double xyz_src[3];
+      egObject *ref, **dum;
+      stat = EG_getTopology(nodes_src[i_node_src], &ref, &oclass, &ntype, xyz_src,
+                        &ndum, &dum, &senses);
+      int ind = EG_indexBodyTopo(object, nodes_src[i_node_src]);
+
+      node_pairs[4*i_pair+2*i_node_src] = ind;
+
+      // printf("ind = %d\n", ind);
+      // printf("i_node_src = %d :: ref = %d\n", i_node_src, ref);
+      // printf("xyz_src = %f %f %f\n", xyz_src[0], xyz_src[1], xyz_src[2]);
+      
+      for (int i_node_tgt=0; i_node_tgt<nnode_tgt; ++i_node_tgt) {
+        double xyz_tgt[3];
+        stat = EG_getTopology(nodes_tgt[i_node_tgt], &ref, &oclass, &ntype, xyz_tgt,
+                              &ndum, &dum, &senses);
+        // printf("  i_node_tgt = %d :: ref = %d\n", i_node_tgt, ref);
+        int ind2 = EG_indexBodyTopo(object, nodes_tgt[i_node_tgt]);
+        // printf("  ind2 = %d\n", ind2);
+        // printf("  xyz_tgt = %f %f %f\n", xyz_tgt[0], xyz_tgt[1], xyz_tgt[2]);
+
+        // TODO: tol
+        double perio_tol = 1.e-12;
+        double xyz_src_periodize[3] = {xyz_src[0], xyz_src[1], xyz_src[2]};
+        xyz_src_periodize[0] = hm[0]*xyz_src[0] + hm[1]*xyz_src[1] + hm[ 2]*xyz_src[2] + hm[ 3]*1.;
+        xyz_src_periodize[1] = hm[4]*xyz_src[0] + hm[5]*xyz_src[1] + hm[ 6]*xyz_src[2] + hm[ 7]*1.;
+        xyz_src_periodize[2] = hm[8]*xyz_src[0] + hm[9]*xyz_src[1] + hm[10]*xyz_src[2] + hm[11]*1.;
+        // printf("  xyz_src_periodize = %f %f %f\n", xyz_src_periodize[0], xyz_src_periodize[1], xyz_src_periodize[2]);
+        // printf("  abs(xyz_src_periodize-xyz_tgt = %20.16e %20.16e %20.16e\n", fabs(xyz_src_periodize[0]-xyz_tgt[0]),
+        //                                                        fabs(xyz_src_periodize[1]-xyz_tgt[1]),
+        //                                                        fabs(xyz_src_periodize[1]-xyz_tgt[1]));
+        // printf("abs(xyz_src_periodize[0]-xyz_tgt[0])<1.e-15 = %d\n", fabs(xyz_src_periodize[0]-xyz_tgt[0])<1.e-15);
+        // printf("abs(xyz_src_periodize[1]-xyz_tgt[1])<1.e-15 = %d\n", fabs(xyz_src_periodize[1]-xyz_tgt[1])<1.e-15);
+        // printf("abs(xyz_src_periodize[2]-xyz_tgt[2])<1.e-15 = %d\n", fabs(xyz_src_periodize[2]-xyz_tgt[2])<1.e-15);
+        if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<perio_tol &&
+            fabs(xyz_src_periodize[1]-xyz_tgt[1])<perio_tol &&
+            fabs(xyz_src_periodize[2]-xyz_tgt[2])<perio_tol){
+          // printf("  --> is_same\n");
+          src_tgt_node_pairs[i_node_src] = i_node_tgt;
+          node_pairs[4*i_pair+2*i_node_src+1] = ind2;
+          nmatch++;
+          break;
+        }
+      }
+    }
+    assert(nmatch==2); // Both vertices must match for edge pair
+
+    // printf("src_tgt_node_pairs = %d %d\n", src_tgt_node_pairs[0], src_tgt_node_pairs[1]);
+    if (src_tgt_node_pairs[0]==0 && src_tgt_node_pairs[1]==1) {
+      pair_signs[i_pair] = 1;
+    }
+    else if (src_tgt_node_pairs[0]==1 && src_tgt_node_pairs[1]==0) {
+      pair_signs[i_pair] = -1;
+    }
+    else {
+      printf("Periodic edge not matching (%d with %d)\n", src, tgt);
+      exit(2);
+    }
+  }
+
+  *pair_signs_out = pair_signs;
+  *node_pairs_out = node_pairs;
+
+  return EGADS_SUCCESS;
+}
+
+
+double _periodic_paramt_interpolation(double t0_src, double t1_src,
+                                      double t0_tgt, double t1_tgt,
+                                      double t_src) {
+  // printf("     t0_src - t1_src = %f - %f\n", t0_src, t1_src);
+  // printf("     t0_tgt - t1_tgt = %f - %f\n", t0_tgt, t1_tgt);
+  // printf("     t_src = %f\n", t_src);
+  double s_src = (t_src-t0_src) / (t1_src-t0_src);
+  // printf("     s_src = %f\n", s_src);
+  double t_tgt = s_src * (t1_tgt-t0_tgt) + t0_tgt;
+  // printf("     t_tgt = %f\n", t_tgt);
+  return t_tgt;
+} 
+
+
+__HOST_AND_DEVICE__ int
+EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
+                        int n_pairs, int **pairs, double **homo_matrices
+                        // int *vtx_pairs_idx, int *vtx_pairs
+                        )
 {
   int      i, j, stat, outLevel, nface, np, aStat, aType, aLen, ignore;
   double   params[3], rparm[3];
@@ -5990,6 +6138,501 @@ EG_makeTessBody(egObject *object, double *paramx, egObject **tess)
   const double *aReals;
   const char   *aStr;
 
+  *tess = NULL;
+  if  (object == NULL)               return EGADS_NULLOBJ;
+  if  (object->magicnumber != MAGIC) return EGADS_NOTOBJ;
+  if ((object->oclass != BODY) &&
+      (object->oclass != EBODY))     return EGADS_NOTBODY;
+  if  (object->blind == NULL)        return EGADS_NODATA;
+  outLevel = EG_outLevel(object);
+  context  = EG_context(object);
+  if  (context == NULL)              return EGADS_NULLOBJ;
+  if  (EG_sameThread(context))       return EGADS_CNTXTHRD;
+  cntx     = (egCntxt *) context->blind;
+  if  (object->oclass == EBODY) {
+    ebody  = (egEBody *) object->blind; 
+    if (ebody->done == 0)            return EGADS_INDEXERR;
+  }
+
+  /**
+   * Compute periodicity
+   */
+  int *edge_pair_signs;
+  int *node_pairs;
+  _compute_periodicity(object, n_pairs, pairs, homo_matrices,
+                      &edge_pair_signs,
+                      &node_pairs);
+
+  // printf("edge_pair_signs = ");
+  // for (int i_pair=0; i_pair<n_pairs; ++i_pair) {
+  //   printf("%d ", edge_pair_signs[i_pair]);
+  // }
+  // printf("\n");
+  printf("node_pairs = ");
+  for (int i_pair=0; i_pair<n_pairs; ++i_pair) {
+    printf("pair n°%d\n", i_pair);
+    for (int j_pair=0; j_pair<2; ++j_pair) {
+      printf("%d %d\n", node_pairs[4*i_pair+2*j_pair+0],
+                        node_pairs[4*i_pair+2*j_pair+1]);
+    }
+  }
+  printf("\n");
+
+  /* get global settings */
+  ignore = 0;
+  if (paramx[1] < 0.0) ignore = 1;
+  params[0] = fabs(paramx[0]);
+  params[1] = fabs(paramx[1]);
+  params[2] =      paramx[2];
+  if (ignore != 1) {
+    aStat   = EG_attrRet3R(object, ".tParams", rparm);
+    if (aStat == EGADS_SUCCESS)
+      for (i = 0; i < 3; i++)
+        if ((rparm[i] < params[i]) && (rparm[i] > 0.0)) params[i] = rparm[i];
+  }
+
+  /* get quadding parameters, if any */
+  aStat = EG_attrRet3R(object, ".qParams", rparm);
+
+  btess = (egTessel *) EG_alloc(sizeof(egTessel));
+  if (btess == NULL) {
+    if (outLevel > 0)
+      printf(" EGADS Error: Blind Malloc (EG_makeTessBody)!\n");
+    return EGADS_MALLOC;
+  }
+  btess->src       = object;
+  btess->xyzs      = NULL;
+  btess->tess1d    = NULL;
+  btess->tess2d    = NULL;
+  btess->globals   = NULL;
+  btess->nGlobal   = 0;
+  btess->nEdge     = 0;
+  btess->nFace     = 0;
+  btess->nu        = 0;
+  btess->nv        = 0;
+  btess->done      = 1;
+  btess->params[0] = params[0];
+  btess->params[1] = params[1];
+  btess->params[2] = params[2];
+  for (i = 0; i < MTESSPARAM; i++) btess->tparam[i] = 0.0;
+  if (cntx != NULL)
+    for (i = 0; i < MTESSPARAM; i++) btess->tparam[i] = cntx->tess[i];
+
+  /* do the Edges & make the Tessellation Object */
+
+  stat = EG_tessEdges(btess, ignore, NULL);
+  if (stat != EGADS_SUCCESS) {
+    EG_cleanupTess(btess);
+    EG_free(btess);
+    return stat;
+  }
+
+
+
+  // > Debug output
+  char filename[999];
+  for (j = 0; j < btess->nEdge; j++) {
+    printf("write vtk i_edge = %d\n", j);
+    sprintf(filename, "edge_%d.vtk", j);
+    // printf("global = ");
+    // for (int i_vtx=0; i_vtx<btess->tess1d[j].npts; ++i_vtx) {
+    //   printf("%d ", btess->tess1d[j].global[i_vtx]);
+    // }
+    // printf("\n");
+    int npts = btess->tess1d[j].npts;
+
+    int nf0 = btess->tess1d[j].faces[0].nface;
+    printf("  faces[0].nface = %d\n", nf0);
+    if (nf0>0) {
+      printf("  faces[0].tric = ");
+      for (int i = 0; i < npts-1; i++) {
+        for (int k = 0; k < nf0; k++) {
+          printf("%d ", btess->tess1d[j].faces[0].tric[i*nf0+k]);
+        }
+      }
+      printf("\n");
+    }
+
+    int nf1 = btess->tess1d[j].faces[1].nface;
+    printf("  faces[1].nface = %d\n", nf1);
+    if (nf1>0) {
+      printf("  faces[1].tric = ");
+      for (int i = 0; i < npts-1; i++) {
+        for (int k = 0; k < nf1; k++) {
+          printf("%d ", btess->tess1d[j].faces[1].tric[i*nf1+k]);
+        }
+      }
+      printf("\n");
+    }
+
+    // printf("  btess->tess1d[j].t = ");
+    // for (int i = 0; i < npts-1; i++) {
+    //   printf("%d ", btess->tess1d[j].t[i]);
+    // }
+    // printf("\n");
+
+    // printf("  btess->tess1d[j].global = ");
+    // for (int i = 0; i < npts-1; i++) {
+    //   printf("%d   ", btess->tess1d[j].global[i]);
+    // }
+    // printf("\n");
+
+    _write_edge_vtk(filename,
+                    btess->tess1d[j].npts,
+                    btess->tess1d[j].xyz,
+                    btess->tess1d[j].t);
+  }
+
+
+  // > Apply periodicity
+  for (int i_pair=0; i_pair<n_pairs; ++i_pair) {
+    int src = pairs[i_pair][0];  
+    int tgt = pairs[i_pair][1];
+
+    // > Prepare coeffs for t interpolation
+    double t0_src = btess->tess1d[src].t[0];
+    double t1_src = btess->tess1d[src].t[btess->tess1d[src].npts-1];
+    double t0_tgt = btess->tess1d[tgt].t[0];
+    double t1_tgt = btess->tess1d[tgt].t[btess->tess1d[tgt].npts-1];
+    if (edge_pair_signs[i_pair]==-1) {
+      t0_tgt = btess->tess1d[tgt].t[btess->tess1d[tgt].npts-1];
+      t1_tgt = btess->tess1d[tgt].t[0];
+    }
+
+    double *hm = homo_matrices[i_pair];
+    // printf("homo_matrices\n");
+    // printf("%f %f %f %f \n", hm[ 0], hm[ 1], hm[ 2], hm[ 3]);
+    // printf("%f %f %f %f \n", hm[ 4], hm[ 5], hm[ 6], hm[ 7]);
+    // printf("%f %f %f %f \n", hm[ 8], hm[ 9], hm[10], hm[11]);
+    // printf("%f %f %f %f \n", hm[12], hm[13], hm[14], hm[15]);
+
+    btess->tess1d[tgt].npts = btess->tess1d[src].npts;
+    EG_free(btess->tess1d[tgt].xyz);
+    EG_free(btess->tess1d[tgt].t);
+    btess->tess1d[tgt].xyz = (double *) EG_alloc(3*btess->tess1d[src].npts * sizeof(double));
+    btess->tess1d[tgt].t   = (double *) EG_alloc(  btess->tess1d[src].npts * sizeof(double));
+
+    for (int i_vtx=0; i_vtx<btess->tess1d[src].npts; ++i_vtx) {
+    // for (int i_vtx=loop_beg; i_vtx<loop_end; i_vtx+=loop_step) {
+      double x = btess->tess1d[src].xyz[3*i_vtx  ];
+      double y = btess->tess1d[src].xyz[3*i_vtx+1];
+      double z = btess->tess1d[src].xyz[3*i_vtx+2];
+
+      int tgt_i_vtx = i_vtx;
+      if (edge_pair_signs[i_pair]==-1) {
+        tgt_i_vtx = btess->tess1d[src].npts - i_vtx - 1;
+      }
+
+      btess->tess1d[tgt].xyz[3*tgt_i_vtx  ] = hm[0]*x + hm[1]*y + hm[ 2]*z + hm[ 3]*1.;
+      btess->tess1d[tgt].xyz[3*tgt_i_vtx+1] = hm[4]*x + hm[5]*y + hm[ 6]*z + hm[ 7]*1.;
+      btess->tess1d[tgt].xyz[3*tgt_i_vtx+2] = hm[8]*x + hm[9]*y + hm[10]*z + hm[11]*1.;
+      btess->tess1d[tgt].t  [  tgt_i_vtx  ] = _periodic_paramt_interpolation(t0_src, t1_src,
+                                                                             t0_tgt, t1_tgt,
+                                                                             btess->tess1d[src].t[i_vtx]);
+      // printf("coords = %.16f %.16f %.16f\n", btess->tess1d[tgt].xyz[3*tgt_i_vtx  ],
+      //                                        btess->tess1d[tgt].xyz[3*tgt_i_vtx+1],
+      //                                        btess->tess1d[tgt].xyz[3*tgt_i_vtx+2]);
+      // printf("t before = %.16f\n", btess->tess1d[tgt].t  [  tgt_i_vtx  ]);
+
+      // > Here coord is exact and t approximate, so we try to fix t but we do not update coords (maybe its an ISSUE ??)
+      double dummy_new_coords[3]; 
+      EG_invEvaluateGuess(btess->tess1d[tgt].obj,
+                         &btess->tess1d[tgt].xyz[3*tgt_i_vtx], 
+                         // &tmp_tgt_t,
+                         &btess->tess1d[tgt].t  [  tgt_i_vtx],
+                         &dummy_new_coords);
+
+      // printf("t after = %.16f\n", btess->tess1d[tgt].t  [  tgt_i_vtx]);
+      // printf("dummy new coord = %.16f %.16f %.16f\n", dummy_new_coords[0],
+      //                                                 dummy_new_coords[1],
+      //                                                 dummy_new_coords[2]);
+      // printf(" --> %f %f %f\n", btess->tess1d[tgt].xyz[3*i_vtx  ],
+      //                           btess->tess1d[tgt].xyz[3*i_vtx+1],
+      //                           btess->tess1d[tgt].xyz[3*i_vtx+2]);
+      double diff_eps = 1.e-14;
+      double dx = fabs(dummy_new_coords[0]-btess->tess1d[tgt].xyz[3*tgt_i_vtx  ]);
+      double dy = fabs(dummy_new_coords[1]-btess->tess1d[tgt].xyz[3*tgt_i_vtx+1]);
+      double dz = fabs(dummy_new_coords[2]-btess->tess1d[tgt].xyz[3*tgt_i_vtx+2]);
+      if (dx>diff_eps && dy>diff_eps && dz>diff_eps) {
+        printf("WARNING:: edge %d modified coords of point %d after t periodicization (dx, dy, dz = %20.16e %20.16e %20.16e)\n", tgt, tgt_i_vtx, dx, dy, dz);
+      }
+    }
+
+
+    int npts = btess->tess1d[src].npts;
+    int nf0  = btess->tess1d[src].faces[0].nface;
+    btess->tess1d[tgt].faces[0].nface = nf0;
+    EG_free(btess->tess1d[tgt].faces[0].tric);
+    btess->tess1d[tgt].faces[0].tric = (int *) EG_alloc(npts*nf0 * sizeof(int));
+
+    if (nf0>0) {
+      for (int i = 0; i < npts-1; i++) {
+        for (int k = 0; k < nf0; k++) {
+          btess->tess1d[tgt].faces[0].tric[i*nf0+k] = btess->tess1d[src].faces[0].tric[i*nf0+k];
+        }
+      }
+    }
+
+    int nf1 = btess->tess1d[src].faces[1].nface;
+    btess->tess1d[tgt].faces[1].nface = nf1;
+    EG_free(btess->tess1d[tgt].faces[1].tric);
+    btess->tess1d[tgt].faces[1].tric = (int *) EG_alloc(npts*nf0 * sizeof(int));
+    if (nf1>0) {
+      for (int i = 0; i < npts-1; i++) {
+        for (int k = 0; k < nf1; k++) {
+          btess->tess1d[tgt].faces[1].tric[i*nf1+k] = btess->tess1d[src].faces[1].tric[i*nf1+k];
+        }
+      }
+    }
+  }
+
+
+
+  // /**
+  //  * Make edge_vtx_idx which will help to build vtx_dom_itrf
+  //  */
+  // int *edge_vtx_idx = malloc((btess->nEdge+1)*sizeof(int));
+  // edge_vtx_idx[0] = 0
+  // for (j = 0; j < btess->nEdge; j++) {
+  //   edge_vtx_idx[j+1] = edge_vtx_idx[j+1]+btess->tess1d[j].npts;
+  // }
+
+  // int *vtx_dom_itrf_idx = malloc(n_pairs*sizeof(int))
+  // for (int i_pair=0; i_pair<n_pairs; ++i_pair) {
+
+  // }
+
+
+  
+  // > Debug output
+  for (j = 0; j < btess->nEdge; j++) {
+    printf("write vtk i_edge = %d\n", j);
+    sprintf(filename, "edge_after%d.vtk", j);
+    // printf("global = ");
+    // for (int i_vtx=0; i_vtx<btess->tess1d[j].npts; ++i_vtx) {
+    //   printf("%d ", btess->tess1d[j].global[i_vtx]);
+    // }
+    // printf("\n");
+    _write_edge_vtk(filename,
+                    btess->tess1d[j].npts,
+                    btess->tess1d[j].xyz,
+                    btess->tess1d[j].t);
+  }
+
+  // exit(1);
+
+
+
+  stat = EG_makeObject(context, &ttess);
+  if (stat != EGADS_SUCCESS) {
+    EG_cleanupTess(btess);
+    EG_free(btess);
+    return stat;
+  }
+  ttess->oclass = TESSELLATION;
+  ttess->blind  = btess;
+  EG_referenceObject(ttess,  context);
+  EG_referenceTopObj(object, ttess);
+  *tess = ttess;
+
+  /* Wire Body or Edges Only */
+  if ((object->mtype == WIREBODY) || (paramx[0] < 0.0)) return EGADS_SUCCESS;
+
+  /* Need Face triangulations */
+  if (object->oclass == EBODY) {
+    stat = EG_getBodyTopos(object, NULL, EFACE, &nface, &faces);
+  } else {
+    stat = EG_getBodyTopos(object, NULL,  FACE, &nface, &faces);
+  }
+  if (stat != EGADS_SUCCESS) {
+    printf(" EGADS Error: EG_getBodyTopos = %d (EG_makeTessBody)!\n",
+           stat);
+    EG_deleteObject(ttess);
+    *tess = NULL;
+    return stat;
+  }
+  btess->tess2d = (egTess2D *) EG_alloc(2*nface*sizeof(egTess2D));
+  if (btess->tess2d == NULL) {
+    printf(" EGADS Error: Alloc %d Faces (EG_makeTessBody)!\n", nface);
+    EG_deleteObject(ttess);
+    *tess = NULL;
+    return EGADS_MALLOC;
+  }
+  for (j = 0; j < 2*nface; j++) {
+    btess->tess2d[j].mKnots = NULL;
+    btess->tess2d[j].xyz    = NULL;
+    btess->tess2d[j].uv     = NULL;
+    btess->tess2d[j].global = NULL;
+    btess->tess2d[j].ptype  = NULL;
+    btess->tess2d[j].pindex = NULL;
+    btess->tess2d[j].bary   = NULL;
+    btess->tess2d[j].frame  = NULL;
+    btess->tess2d[j].frlps  = NULL;
+    btess->tess2d[j].tris   = NULL;
+    btess->tess2d[j].tric   = NULL;
+    btess->tess2d[j].patch  = NULL;
+    btess->tess2d[j].npts   = 0;
+    btess->tess2d[j].nframe = 0;
+    btess->tess2d[j].nfrlps = 0;
+    btess->tess2d[j].ntris  = 0;
+    btess->tess2d[j].npatch = 0;
+    btess->tess2d[j].tfi    = 0;
+  }
+  btess->nFace = nface;
+
+  /* set up for explicit multithreading */
+  tthread.mutex     = NULL;
+  tthread.master    = EMP_ThreadID();
+  tthread.index     = 0;
+  tthread.end       = nface;
+  tthread.ignore    = ignore;
+  tthread.silent    = 0;
+  tthread.mark      = NULL;
+  tthread.tess      = ttess;
+  tthread.btess     = btess;
+  tthread.body      = object;
+  tthread.faces     = faces;
+  tthread.edges     = NULL;
+  tthread.params    = params;
+  tthread.tparam    = btess->tparam;
+  tthread.qparam[0] = tthread.qparam[1] = tthread.qparam[2] = 0.0;
+  if (aStat == EGADS_SUCCESS)
+    for (i = 0; i < 3; i++) tthread.qparam[i] = rparm[i];
+
+  aStat = EG_attributeRet(object, ".silent", &aType, &aLen, &aInts,
+                          &aReals, &aStr);
+  if (aStat == EGADS_SUCCESS) tthread.silent = 1;
+
+  np = EMP_Init(&start);
+  if (outLevel > 1) printf(" EMP NumProcs = %d!\n", np);
+  if (nface < np) np = nface;
+
+  if (np > 1) {
+    /* create the mutex to handle list synchronization */
+    tthread.mutex = EMP_LockCreate();
+    if (tthread.mutex == NULL) {
+      printf(" EMP Error: mutex creation = NULL!\n");
+      np = 1;
+    } else {
+      /* get storage for our extra threads */
+      threads = (void **) malloc((np-1)*sizeof(void *));
+      if (threads == NULL) {
+        EMP_LockDestroy(tthread.mutex);
+        np = 1;
+      }
+    }
+  }
+
+  /* create the threads and get going! */
+  if (threads != NULL)
+    for (i = 0; i < np-1; i++) {
+      threads[i] = EMP_ThreadCreate(EG_tessThread, &tthread);
+      if (threads[i] == NULL)
+        printf(" EMP Error Creating Thread #%d!\n", i+1);
+    }
+  /* now run the thread block from the original thread */
+  EG_tessThread(&tthread);
+
+  /* wait for all others to return */
+  if (threads != NULL)
+    for (i = 0; i < np-1; i++)
+      if (threads[i] != NULL) EMP_ThreadWait(threads[i]);
+#ifdef PROGRESS
+  if (outLevel > 0) printf("\n");
+#endif
+#ifdef CHECK
+  EG_checkTriangulation(btess);
+#endif
+
+  /* cleanup */
+  if (threads != NULL)
+    for (i = 0; i < np-1; i++)
+      if (threads[i] != NULL) EMP_ThreadDestroy(threads[i]);
+  if (tthread.mutex != NULL) EMP_LockDestroy(tthread.mutex);
+  if (threads != NULL) free(threads);
+  EG_free(faces);
+  if (outLevel > 1)
+    printf(" EMP Number of Seconds on Face Thread Block = %ld\n",
+           EMP_Done(&start));
+
+  if (outLevel > 1) {
+    for (i = j = 0; j < nface; j++)
+      if (btess->tess2d[j].tfi == 1) {
+        if (i == 0)
+          printf(" EGADS Info: Triangulation by TFI for Faces");
+        printf(" %d", j+1);
+        i++;
+      }
+    if (i != 0) printf("\n");
+  }
+
+
+
+
+  /**
+   * Build periodic vtx graph
+   */
+
+
+
+
+
+
+
+#ifndef LITE
+  for (i = j = 0; j < nface; j++)
+    if (btess->tess2d[j].tfi == 1) {
+      np = btess->tess2d[j].ntris/2;
+      if (2*np == btess->tess2d[j].ntris) i++;
+    }
+  if (i != 0) {
+    int *qints;
+
+    qints = (int *) EG_alloc(nface*sizeof(int));
+    if (qints != NULL) {
+      for (j = 0; j < nface; j++) {
+        qints[j] = 0;
+        if (btess->tess2d[j].tfi == 1) {
+          np = btess->tess2d[j].ntris/2;
+          if (2*np == btess->tess2d[j].ntris) qints[j] = np;
+        }
+      }
+      stat = EG_attributeAdd(ttess, ".mixed", ATTRINT, nface, qints, NULL, NULL);
+      if (stat != EGADS_SUCCESS)
+        if (outLevel > 0)
+          printf(" EGADS Warning: EG_attributeAdd m = %d (EG_makeTessBody)!\n",
+                 stat);
+      EG_free(qints);
+      stat = EG_attributeAdd(ttess, ".tessType", ATTRSTRING, 5, NULL, NULL,
+                             "Mixed");
+      if (stat != EGADS_SUCCESS)
+        if (outLevel > 0)
+          printf(" EGADS Warning: EG_attributeAdd T = %d (EG_makeTessBody)!\n",
+                 stat);
+    }
+  }
+#endif
+  printf("FIXER LES LEAKS LOUL\n");
+  return EGADS_SUCCESS;
+}
+
+
+__HOST_AND_DEVICE__ int
+EG_makeTessBody(egObject *object, double *paramx, egObject **tess)
+{
+  int      i, j, stat, outLevel, nface, np, aStat, aType, aLen, ignore;
+  double   params[3], rparm[3];
+  void     **threads = NULL;
+  long     start;
+  egTessel *btess;
+  egObject *ttess, *context, **faces;
+  egCntxt  *cntx;
+  egEBody  *ebody;
+  EMPtess  tthread;
+  const int    *aInts;
+  const double *aReals;
+  const char   *aStr;
+  printf("lala\n");
   *tess = NULL;
   if  (object == NULL)               return EGADS_NULLOBJ;
   if  (object->magicnumber != MAGIC) return EGADS_NOTOBJ;
