@@ -6404,9 +6404,9 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
   }
 
   int i_write_pair = 0;
-  int *edge_pairs_idx  = calloc(n_itrf      ,sizeof(int));
-  int *edge_pairs      = malloc(n_edge_pairs*sizeof(int));
-  int *edge_pairs_sign = malloc(n_edge_pairs*sizeof(int));
+  int *edge_pairs_idx  = EG_calloc(n_itrf      ,sizeof(int));
+  int *edge_pairs      = EG_alloc (n_edge_pairs*sizeof(int));
+  int *edge_pairs_sign = EG_alloc (n_edge_pairs*sizeof(int));
 
 
   for (int i_itrf=0; i_itrf<n_itrf; ++i_itrf) {
@@ -6629,7 +6629,7 @@ _compute_node_pairs_from_face_pairs(egObject *object,
                                     int     **node_pairs_idx_out,
                                     int     **node_pairs_out)
 {
-  int stat, oclass, mtype;
+  int oclass, mtype;
   int nnode, nedge, nface, nloop;
   egObject **nodes, **edges, **faces, **loops;
   egObject *geom;
@@ -6653,11 +6653,11 @@ _compute_node_pairs_from_face_pairs(egObject *object,
 
       // > Go though face connectivity to get face nodes
       int n_face_nodes_src = 0;
-      stat = EG_getTopology(face_src, &geom, &oclass, &mtype, NULL, &nloop, &loops,
-                          &senses);
+      EG_getTopology(face_src, &geom, &oclass, &mtype, NULL, &nloop, &loops,
+                    &senses);
       for (int i = 0; i < nloop; i++) {
-        stat = EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
-                              &edges, &senses);
+        EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
+                      &edges, &senses);
         for (int i_edge=0; i_edge<nedge; ++i_edge) {
           int k = EG_indexBodyTopo(object, edges[i_edge]);
           if (k <= EGADS_SUCCESS) {
@@ -6665,8 +6665,8 @@ _compute_node_pairs_from_face_pairs(egObject *object,
                    src, i_edge);
             return EGADS_NOTFOUND;
           }
-          stat = EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
-                                &nodes, &senses);
+          EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
+                        &nodes, &senses);
           if (nnode==2) {
             n_face_nodes_src += 1;
           }
@@ -6674,11 +6674,11 @@ _compute_node_pairs_from_face_pairs(egObject *object,
       }
 
       int n_face_nodes_tgt = 0;
-      stat = EG_getTopology(face_tgt, &geom, &oclass, &mtype, NULL, &nloop, &loops,
-                          &senses);
+      EG_getTopology(face_tgt, &geom, &oclass, &mtype, NULL, &nloop, &loops,
+                    &senses);
       for (int i = 0; i < nloop; i++) {
-        stat = EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
-                              &edges, &senses);
+        EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
+                      &edges, &senses);
         for (int i_edge=0; i_edge<nedge; ++i_edge) {
           int k = EG_indexBodyTopo(object, edges[i_edge]);
           if (k <= EGADS_SUCCESS) {
@@ -6686,8 +6686,8 @@ _compute_node_pairs_from_face_pairs(egObject *object,
                    tgt, i_edge);
             return EGADS_NOTFOUND;
           }
-          stat = EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
-                                &nodes, &senses);
+          EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
+                        &nodes, &senses);
           if (nnode==2) {
             n_face_nodes_tgt += 1;
           }
@@ -6737,12 +6737,12 @@ _compute_node_pairs_from_face_pairs(egObject *object,
 
       // > Go though face connectivity to get face nodes
       int i_face_vtx_src = 0;
-      stat = EG_getTopology(face_src, &geom, &oclass, &mtype, NULL, &nloop, &loops,
-                          &senses);
+      EG_getTopology(face_src, &geom, &oclass, &mtype, NULL, &nloop, &loops,
+                    &senses);
       // printf("Face %d\n", src);
       for (int i = 0; i < nloop; i++) {
-        stat = EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
-                              &edges, &senses);
+        EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
+                      &edges, &senses);
         for (int i_edge=0; i_edge<nedge; ++i_edge) {
           int k = EG_indexBodyTopo(object, edges[i_edge]);
 
@@ -6752,8 +6752,8 @@ _compute_node_pairs_from_face_pairs(egObject *object,
             return EGADS_NOTFOUND;
           }
           int *vtx_senses = NULL;
-          stat = EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
-                                &nodes, &vtx_senses);
+          EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
+                        &nodes, &vtx_senses);
           if (nnode==2) {
             if (senses[i_edge]==1) {
               src_face_vertices[i_face_vtx_src] = nodes[0];
@@ -6768,11 +6768,11 @@ _compute_node_pairs_from_face_pairs(egObject *object,
 
 
       int i_face_vtx_tgt = 0;
-      stat = EG_getTopology(face_tgt, &geom, &oclass, &mtype, NULL, &nloop, &loops,
-                          &senses);
+      EG_getTopology(face_tgt, &geom, &oclass, &mtype, NULL, &nloop, &loops,
+                    &senses);
       for (int i = 0; i < nloop; i++) {
-        stat = EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
-                              &edges, &senses);
+        EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
+                      &edges, &senses);
         for (int i_edge=0; i_edge<nedge; ++i_edge) {
           int k = EG_indexBodyTopo(object, edges[i_edge]);
 
@@ -6782,8 +6782,8 @@ _compute_node_pairs_from_face_pairs(egObject *object,
             return EGADS_NOTFOUND;
           }
           int *vtx_senses = NULL;
-          stat = EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
-                                &nodes, &vtx_senses);
+          EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
+                        &nodes, &vtx_senses);
 
           if (nnode==2) {
             if (senses[i_edge]==1) {
@@ -6801,8 +6801,8 @@ _compute_node_pairs_from_face_pairs(egObject *object,
       egObject **dum;
       for (int i_node_src=0; i_node_src<i_face_vtx_src; ++i_node_src) {
         double xyz_src[3];
-        stat = EG_getTopology(src_face_vertices[i_node_src], &geom, &oclass, &mtype, xyz_src,
-                              &ndum, &dum, &senses);
+        EG_getTopology(src_face_vertices[i_node_src], &geom, &oclass, &mtype, xyz_src,
+                      &ndum, &dum, &senses);
         double xyz_src_periodize[3] = {xyz_src[0], xyz_src[1], xyz_src[2]};
             xyz_src_periodize[0] = hm[0]*xyz_src[0] + hm[1]*xyz_src[1] + hm[ 2]*xyz_src[2] + hm[ 3]*1.;
             xyz_src_periodize[1] = hm[4]*xyz_src[0] + hm[5]*xyz_src[1] + hm[ 6]*xyz_src[2] + hm[ 7]*1.;
@@ -6813,8 +6813,8 @@ _compute_node_pairs_from_face_pairs(egObject *object,
         int found_match = 0;
         for (int i_node_tgt=0; i_node_tgt<i_face_vtx_tgt; ++i_node_tgt) {
           double xyz_tgt[3];
-          stat = EG_getTopology(tgt_face_vertices[i_node_tgt], &geom, &oclass, &mtype, xyz_tgt,
-                                &ndum, &dum, &senses);
+          EG_getTopology(tgt_face_vertices[i_node_tgt], &geom, &oclass, &mtype, xyz_tgt,
+                        &ndum, &dum, &senses);
           
           int ind_node_tgt = EG_indexBodyTopo(object, tgt_face_vertices[i_node_tgt]);
           
