@@ -6983,11 +6983,13 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
   /**
    * Compute periodicity
    */
-  int *edge_pairs_idx;
-  int *edge_pairs;
-  int *edge_pairs_sign;
-  int *node_pairs_idx;
-  int *node_pairs;
+  int       *edge_pairs_idx  = NULL;
+  int       *edge_pairs      = NULL;
+  int       *edge_pairs_sign = NULL;
+  int       *node_pairs_idx  = NULL;
+  int       *node_pairs      = NULL;
+  int       *face_edge_idx   = NULL;
+  egObject **face_edge       = NULL;
   if (dim==2) {
     _compute_edge_sign_from_node_pairs(object,
                                        n_itrf, 
@@ -7019,6 +7021,13 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
                                        &edge_pairs_idx,
                                        &edge_pairs,
                                        &edge_pairs_sign);
+
+    _compute_periodic_face_edge(object,
+                                n_itrf,
+                                pairs_idx,
+                                pairs,
+                               &face_edge_idx,
+                               &face_edge);
   }
 
   // printf("edge_pair_signs = ");
@@ -7143,6 +7152,9 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
 
   // > Apply periodicity
   for (int i_itrf=0; i_itrf<n_itrf; ++i_itrf) {
+    
+    double *hm = &homo_matrices[16*i_itrf];
+    
     for (int i_pair=edge_pairs_idx[i_itrf];
              i_pair<edge_pairs_idx[i_itrf+1]; ++i_pair) {
       int src = edge_pairs[2*i_pair  ]-1;  
@@ -7158,7 +7170,6 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
         t1_tgt = btess->tess1d[tgt].t[0];
       }
 
-      double *hm = &homo_matrices[16*i_itrf];
 
       btess->tess1d[tgt].npts = btess->tess1d[src].npts;
       EG_free(btess->tess1d[tgt].xyz);
@@ -7249,7 +7260,7 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
   
   // > Debug output
   for (j = 0; j < btess->nEdge; j++) {
-    printf("write vtk i_edge = %d\n", j);
+    // printf("write vtk i_edge = %d\n", j);
     sprintf(filename, "edge_after%d.vtk", j);
     // printf("global = ");
     // for (int i_vtx=0; i_vtx<btess->tess1d[j].npts; ++i_vtx) {
@@ -7383,6 +7394,208 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
 #ifdef PROGRESS
   if (outLevel > 0) printf("\n");
 #endif
+
+
+  /**
+   * Try to periodize surfaces
+   */
+  if (dim==3) {
+
+
+    for (int i_itrf=0; i_itrf<n_itrf; ++i_itrf) {
+      double *hm = &homo_matrices[16*i_itrf];
+    
+      for (int i_pair=pairs_idx[i_itrf];
+               i_pair<pairs_idx[i_itrf+1]; ++i_pair) {
+
+        int src = pairs[2*i_pair  ]-1;
+        int tgt = pairs[2*i_pair+1]-1;
+
+        int     old_nvtx  = btess->tess2d[tgt].npts;
+        int     old_ntris = btess->tess2d[tgt].ntris;
+        double *old_xyz   = btess->tess2d[tgt].xyz;
+        double *old_uv    = btess->tess2d[tgt].uv;
+        int    *old_tris  = btess->tess2d[tgt].tris;
+        EG_free(btess->tess2d[tgt].tric);
+        EG_free(btess->tess2d[tgt].ptype);
+        EG_free(btess->tess2d[tgt].pindex);
+        EG_free(btess->tess2d[tgt].frame);
+        btess->tess2d[tgt].npts   = btess->tess2d[src].npts;
+        btess->tess2d[tgt].xyz    = (double *) EG_alloc(3*btess->tess2d[src].npts * sizeof(double));
+        btess->tess2d[tgt].uv     = (double *) EG_calloc(2*btess->tess2d[src].npts, sizeof(double));
+        btess->tess2d[tgt].ptype  = (int    *) EG_alloc(  btess->tess2d[src].npts * sizeof(int));
+        btess->tess2d[tgt].pindex = (int    *) EG_alloc(  btess->tess2d[src].npts * sizeof(int));
+        btess->tess2d[tgt].ntris  = btess->tess2d[src].ntris;
+        btess->tess2d[tgt].tris   = (int    *) EG_alloc(3*btess->tess2d[src].ntris * sizeof(int));
+        btess->tess2d[tgt].tric   = (int    *) EG_alloc(3*btess->tess2d[src].ntris * sizeof(int));
+        btess->tess2d[tgt].frame  = (int    *) EG_alloc(3*btess->tess2d[src].nframe* sizeof(int));
+        
+        // > Copy coordinate while applying transformation
+        for (int i_vtx=0; i_vtx<btess->tess2d[src].npts; ++i_vtx) {
+          double x = btess->tess2d[src].xyz[3*i_vtx  ];
+          double y = btess->tess2d[src].xyz[3*i_vtx+1];
+          double z = btess->tess2d[src].xyz[3*i_vtx+2];
+
+          // int tgt_i_vtx = i_vtx;
+          btess->tess2d[tgt].xyz[3*i_vtx  ] = hm[0]*x + hm[1]*y + hm[ 2]*z + hm[ 3]*1.;
+          btess->tess2d[tgt].xyz[3*i_vtx+1] = hm[4]*x + hm[5]*y + hm[ 6]*z + hm[ 7]*1.;
+          btess->tess2d[tgt].xyz[3*i_vtx+2] = hm[8]*x + hm[9]*y + hm[10]*z + hm[11]*1.;
+
+          double new_coords[3]; 
+
+          _interpolate_uv_from_tess(&btess->tess2d[tgt].xyz[3*i_vtx],
+                                    old_ntris,
+                                    old_tris,
+                                    old_xyz,
+                                    old_uv,
+                                   &btess->tess2d[tgt].uv[2*i_vtx]);
+
+          stat = EG_invEvaluateGuess(faces[tgt],
+                                    &btess->tess2d[tgt].xyz[3*i_vtx],
+                                    &btess->tess2d[tgt].uv [2*i_vtx],
+                           (double *) new_coords);
+
+        }
+
+
+        // > Copy connectivities
+        //   tric is face face connectivity, except for boundary, we put cad edge id
+        for (int i_vtx=0; i_vtx<btess->tess2d[src].ntris; ++i_vtx) {
+          for (int j=0; j<3; ++j) {
+
+            int jj = 3-j-1;
+            btess->tess2d[tgt].tris[3*i_vtx+j] = btess->tess2d[src].tris[3*i_vtx+jj];
+            
+            if (btess->tess2d[src].tric[3*i_vtx+j]<0) {
+              int matching_edge = 0;
+              _find_matching_pair(&edge_pairs[2*edge_pairs_idx[i_itrf]],
+                                  NULL,
+                                  edge_pairs_idx[i_itrf+1]-edge_pairs_idx[i_itrf],
+                                  abs(btess->tess2d[src].tric[3*i_vtx+j]),
+                                  &matching_edge,
+                                  NULL);
+              btess->tess2d[tgt].tric[3*i_vtx+jj] = -matching_edge;
+            }
+            else {
+              btess->tess2d[tgt].tric[3*i_vtx+jj] = btess->tess2d[src].tric[3*i_vtx+j];
+            }
+          }
+        }
+
+        // > Copy frame (initial triangulation ?)
+        memcpy(btess->tess2d[tgt].frame,
+               btess->tess2d[src].frame,
+             3*btess->tess2d[src].nframe * sizeof(int));
+
+
+        // > Copy node and edge while updating affiliations
+        for (int i_vtx=0; i_vtx<btess->tess2d[src].npts; ++i_vtx) {
+          if (btess->tess2d[src].ptype[i_vtx]==0) { // Is node
+            btess->tess2d[tgt].ptype[i_vtx] = 0;
+            int matching_node = -1;
+            _find_matching_pair(&node_pairs[2*node_pairs_idx[i_itrf]],
+                                NULL,
+                                node_pairs_idx[i_itrf+1]-node_pairs_idx[i_itrf],
+                                btess->tess2d[src].pindex[i_vtx],
+                                &matching_node,
+                                NULL);
+
+            if (matching_node==-1) {
+              printf("ERROR: Face %d with face %d : Corner %d found no match\n",
+                        src+1, tgt+1, btess->tess2d[src].pindex[i_vtx]);
+              exit(2);
+            }
+            else {
+              btess->tess2d[tgt].pindex[i_vtx] = matching_node;
+            }
+          }
+          else if (btess->tess2d[src].ptype[i_vtx]>0) { // Is edge
+            int matching_edge = 0;
+            int matching_sign = 0;
+            _find_matching_pair(&edge_pairs   [2*edge_pairs_idx[i_itrf]],
+                                &edge_pairs_sign[edge_pairs_idx[i_itrf]],
+                                edge_pairs_idx[i_itrf+1]-edge_pairs_idx[i_itrf],
+                                btess->tess2d[src].pindex[i_vtx],
+                                &matching_edge,
+                                &matching_sign);
+
+            if (matching_edge<1) {
+              printf("ERROR: Face %d with face %d : Corner %d found no match\n",
+                        src+1, tgt+1, btess->tess2d[src].pindex[i_vtx]);
+              exit(2);
+            }
+            else {
+              btess->tess2d[tgt].pindex[i_vtx] = matching_edge;
+              int n_vtx_edge     = btess->tess1d[matching_edge-1].npts;
+              int i_vtx_edge_src = btess->tess2d[src].ptype[i_vtx];
+              if (matching_sign<0) {
+                btess->tess2d[tgt].ptype[i_vtx] = n_vtx_edge-i_vtx_edge_src+1;
+              }
+              else {
+                btess->tess2d[tgt].ptype[i_vtx] = i_vtx_edge_src;
+              }
+            }
+          }
+          else {
+            btess->tess2d[tgt].ptype [i_vtx] = -1;
+            btess->tess2d[tgt].pindex[i_vtx] = -1;
+          }
+        }
+
+
+        // > Update edge->tri connectivity
+        for (int i_edge=face_edge_idx[src]; i_edge<face_edge_idx[src+1]; ++i_edge) {
+          int edge_src_id    = EG_indexBodyTopo(object, face_edge[i_edge]);
+          int edge_tgt_id    = -1;
+          int edge_pair_sign = 0;
+
+          _find_matching_pair(&edge_pairs   [2*edge_pairs_idx[i_itrf]],
+                              &edge_pairs_sign[edge_pairs_idx[i_itrf]],
+                               edge_pairs_idx[i_itrf+1]-edge_pairs_idx[i_itrf],
+                               edge_src_id,
+                              &edge_tgt_id,
+                              &edge_pair_sign);
+          int src_i_face = -1;
+          int tgt_i_face = -1;
+          if (btess->tess1d[edge_tgt_id-1].faces[0].index==tgt+1) {
+            tgt_i_face = 0;
+          }
+          else if (btess->tess1d[edge_tgt_id-1].faces[1].index==tgt+1) {
+            tgt_i_face = 1;
+          }
+          else {
+            printf("ERROR: Edge %d does'nt have face %d in parent (%d and %d)\n",
+                      edge_tgt_id, tgt+1, btess->tess1d[j].faces[0].index, btess->tess1d[j].faces[0].index);
+            exit(2);
+          }
+          if (btess->tess1d[edge_src_id-1].faces[0].index==src+1) {
+            src_i_face = 0;
+          }
+          else if (btess->tess1d[edge_src_id-1].faces[1].index==src+1) {
+            src_i_face = 1;
+          }
+          else {
+            printf("ERROR: Edge %d does'nt have face %d in parent (%d and %d)\n",
+                      edge_src_id, src+1, btess->tess1d[j].faces[0].index, btess->tess1d[j].faces[0].index);
+            exit(2);
+          }
+
+          assert (btess->tess1d[edge_src_id-1].faces[src_i_face].nface==1);
+          for (int i_tri=0; i_tri<btess->tess1d[edge_src_id-1].npts-1; ++i_tri) {
+            int i_read = i_tri;
+            if (edge_pair_sign==-1) {
+              i_read = btess->tess1d[edge_src_id-1].npts-1-i_read-1;
+            }
+            btess->tess1d[edge_tgt_id-1].faces[tgt_i_face].tric[i_tri] = btess->tess1d[edge_src_id-1].faces[src_i_face].tric[i_read];
+          }
+        }
+      }
+    }
+  }
+
+
+
+
 #ifdef CHECK
   EG_checkTriangulation(btess);
 #endif
