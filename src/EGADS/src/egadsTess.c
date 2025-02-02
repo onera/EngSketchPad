@@ -150,6 +150,20 @@ __PROTO_H_AND_D__ int  EG_mapSequen( egObject *src, egObject *dst,
 
 
 
+static
+double
+_DOT_PRODUCT
+(
+  double vect1[3],
+  double vect2[3]
+)
+{
+  return vect1[0] * vect2[0] +
+         vect1[1] * vect2[1] +
+         vect1[2] * vect2[2];
+}
+
+
 __HOST_AND_DEVICE__ static int
 EG_attrRet3R(const egObject *obj, const char *name, double *vals)
 {
@@ -6282,6 +6296,29 @@ int _unexisting_pair(int  n_pairs,
 }
 
 
+int _find_matching_pair
+(
+  int *pairs,
+  int *pairs_sign,
+  int  n_pairs,
+  int  id,
+  int *match_id,
+  int *match_sign
+)
+{
+  for (int i_pair=0; i_pair<n_pairs; ++i_pair) {
+    if (pairs[2*i_pair]==id) {
+      *match_id = pairs[2*i_pair+1];
+      if (pairs_sign!=NULL) {
+        *match_sign = pairs_sign[i_pair];
+      }
+      return EGADS_SUCCESS;
+    }
+  }
+  return EGADS_NOTFOUND;
+}
+
+
 __HOST_AND_DEVICE__ int
 _compute_edge_pairs_from_node_pairs(egObject *object,
                                     int       n_itrf,
@@ -6293,15 +6330,13 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
                                     int     **edge_pairs_out,
                                     int     **edge_pairs_sign_out)
 {
-  // printf("object->oclass = %d\n", object->oclass);
-  int stat, oclass, mtype;
+  int oclass, mtype;
   int nnode, nedge, nface, nloop;
   egObject **nodes, **edges, **faces, **loops;
   egObject *geom;
   int *senses;
 
-  stat = EG_getBodyTopos(object, NULL,  FACE, &nface , &faces);
-  stat = EG_getBodyTopos(object, NULL,  EDGE, &nedge , &edges);
+  EG_getBodyTopos(object, NULL,  FACE, &nface , &faces);
 
   int n_edge_pairs = 0;
 
@@ -6315,15 +6350,15 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
       egObject *face_tgt = faces[tgt];
 
       // > Go though face connectivity to get face nodes
-      stat = EG_getTopology(face_src, &geom, &oclass, &mtype, NULL, &nloop, &loops,
-                          &senses);
+      EG_getTopology(face_src, &geom, &oclass, &mtype, NULL, &nloop, &loops,
+                   &senses);
       int n_face_edges_src = 0;
       for (int i = 0; i < nloop; i++) {
-        stat = EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
-                              &edges, &senses);
+        EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
+                       &edges, &senses);
         for (int i_edge=0; i_edge<nedge; ++i_edge) {
-          stat = EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
-                                &nodes, &senses);
+          EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
+                         &nodes, &senses);
           if (nnode==2) {
             n_face_edges_src++;
           }
@@ -6331,15 +6366,15 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
         }
       }
 
-      stat = EG_getTopology(face_tgt, &geom, &oclass, &mtype, NULL, &nloop, &loops,
-                          &senses);
+      EG_getTopology(face_tgt, &geom, &oclass, &mtype, NULL, &nloop, &loops,
+                   &senses);
       int n_face_edges_tgt = 0;
       for (int i = 0; i < nloop; i++) {
-        stat = EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
-                              &edges, &senses);
+        EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
+                       &edges, &senses);
         for (int i_edge=0; i_edge<nedge; ++i_edge) {
-          stat = EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
-                                &nodes, &senses);
+          EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
+                         &nodes, &senses);
           if (nnode==2) {
             n_face_edges_tgt++;
           }
@@ -6390,14 +6425,14 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
 
       // > Go though face connectivity to get face edges
       int i_face_edge_src = 0;
-      stat = EG_getTopology(face_src, &geom, &oclass, &mtype, NULL, &nloop, &loops,
-                          &senses);
+      EG_getTopology(face_src, &geom, &oclass, &mtype, NULL, &nloop, &loops,
+                   &senses);
       for (int i = 0; i < nloop; i++) {
-        stat = EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
-                              &edges, &senses);
+        EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
+                       &edges, &senses);
         for (int i_edge=0; i_edge<nedge; ++i_edge) {
-          stat = EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
-                                &nodes, &senses);
+          EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
+                         &nodes, &senses);
           if (nnode==2) {
             src_face_edges[i_face_edge_src] = edges[i_edge];
             i_face_edge_src++;
@@ -6407,14 +6442,14 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
 
 
       int i_face_edge_tgt = 0;
-      stat = EG_getTopology(face_tgt, &geom, &oclass, &mtype, NULL, &nloop, &loops,
-                          &senses);
+      EG_getTopology(face_tgt, &geom, &oclass, &mtype, NULL, &nloop, &loops,
+                   &senses);
       for (int i = 0; i < nloop; i++) {
-        stat = EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
-                              &edges, &senses);
+        EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
+                       &edges, &senses);
         for (int i_edge=0; i_edge<nedge; ++i_edge) {
-          stat = EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
-                                &nodes, &senses);
+          EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
+                         &nodes, &senses);
           if (nnode==2) {
             tgt_face_edges[i_face_edge_tgt] = edges[i_edge];
             i_face_edge_tgt++;
@@ -6426,10 +6461,9 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
       for (int i_src_edge=0; i_src_edge<n_face_edges[src]; ++i_src_edge) {
         int nnode_src;
         egObject **nodes_src;
-        stat = EG_getTopology(src_face_edges[i_src_edge], &geom, &oclass, &mtype, NULL, &nnode_src,
-                              &nodes_src, &senses);
+        EG_getTopology(src_face_edges[i_src_edge], &geom, &oclass, &mtype, NULL, &nnode_src,
+                       &nodes_src, &senses);
 
-        int node_match_src[2] = {0,0};
         int node_match_tgt[2] = {0,0};
 
         int n_src_nodes_found = 0;
@@ -6440,7 +6474,6 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
           for (int i_node_cdt=node_pairs_idx[i_itrf]; i_node_cdt<node_pairs_idx[i_itrf+1]; ++i_node_cdt) {
 
             if (node_src_gid==node_pairs[2*i_node_cdt]) {
-              node_match_src[i_node_src] = node_pairs[2*i_node_cdt  ];
               node_match_tgt[i_node_src] = node_pairs[2*i_node_cdt+1];
               n_src_nodes_found++;
               break;
@@ -6457,8 +6490,8 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
         for (int i_tgt_edge=0; i_tgt_edge<n_face_edges[tgt]; ++i_tgt_edge) {
           int nnode_tgt;
           egObject **nodes_tgt;
-          stat = EG_getTopology(tgt_face_edges[i_tgt_edge], &geom, &oclass, &mtype, NULL, &nnode_tgt,
-                                &nodes_tgt, &senses);
+          EG_getTopology(tgt_face_edges[i_tgt_edge], &geom, &oclass, &mtype, NULL, &nnode_tgt,
+                        &nodes_tgt, &senses);
 
           int nmatch = 0;
           int match[2] = {0,0};
@@ -6514,6 +6547,78 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
 
 
 __HOST_AND_DEVICE__ int
+_compute_periodic_face_edge
+(
+  egObject   *object,
+  int         n_itrf,
+  int        *pairs_idx,
+  int        *pairs,
+  int       **face_edge_idx_out,
+  egObject ***face_edge_out
+)
+{
+  int oclass, mtype;
+  int nnode, nedge, nface, nloop;
+  egObject **nodes, **edges, **faces, **loops;
+  egObject *geom;
+  int *senses;
+
+  EG_getBodyTopos(object, NULL, FACE, &nface, &faces);
+
+
+  // > Count number of edge in faces
+  int  n_edge = 0;
+  for (int i_face=0; i_face<nface; ++i_face) {
+
+    EG_getTopology(faces[i_face], &geom, &oclass, &mtype, NULL, &nloop, &loops,
+                  &senses);
+    for (int i = 0; i < nloop; i++) {
+      EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
+                    &edges, &senses);
+      for (int i_edge=0; i_edge<nedge; ++i_edge) {
+        EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
+                      &nodes, &senses);
+        if (nnode==2) {
+          n_edge++;
+        }
+      }
+    }
+  }
+
+
+  // > Fill face edge connectivity
+  int i_write = 0;
+  int       *face_edge_idx = calloc(nface+1,sizeof(int));
+  egObject **face_edge     = malloc(n_edge* sizeof(egObject));
+    
+  for (int i_face=0; i_face<nface; ++i_face) {
+    
+    face_edge_idx[i_face+1] = face_edge_idx[i_face];
+    EG_getTopology(faces[i_face], &geom, &oclass, &mtype, NULL, &nloop, &loops,
+                  &senses);
+    for (int i = 0; i < nloop; i++) {
+      EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
+                    &edges, &senses);
+      for (int i_edge=0; i_edge<nedge; ++i_edge) {
+        EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
+                      &nodes, &senses);
+        if (nnode==2) {
+          face_edge    [i_write] = edges[i_edge];
+          face_edge_idx[i_face+1]++;
+          i_write++;
+        }
+      }
+    }
+  }
+
+  *face_edge_idx_out  = face_edge_idx;
+  *face_edge_out      = face_edge;
+
+  return EGADS_SUCCESS;
+}
+
+
+__HOST_AND_DEVICE__ int
 _compute_node_pairs_from_face_pairs(egObject *object,
                                     int       n_itrf,
                                     int      *pairs_idx,
@@ -6530,8 +6635,8 @@ _compute_node_pairs_from_face_pairs(egObject *object,
   egObject *geom;
   int *senses;
 
-  stat = EG_getBodyTopos(object, NULL,  FACE, &nface , &faces);
-  stat = EG_getBodyTopos(object, NULL,  EDGE, &nedge , &edges);
+  EG_getBodyTopos(object, NULL,  FACE, &nface , &faces);
+  EG_getBodyTopos(object, NULL,  EDGE, &nedge , &edges);
 
   int n_vtx_pairs = 0;
 
@@ -6904,7 +7009,250 @@ double _periodic_paramt_interpolation(double t0_src, double t1_src,
   double t_tgt = s_src * (t1_tgt-t0_tgt) + t0_tgt;
   // printf("     t_tgt = %f\n", t_tgt);
   return t_tgt;
-} 
+}
+
+
+double
+_line_distance
+(
+ const double x[3],
+ const double p1[3],
+ const double p2[3],
+ double *t,
+ double closestPoint[3]
+ )
+{
+
+  const double _tol_dist = 1e-5;
+
+  double p21[3], denom, num;
+  const double *closest;
+
+  /*
+   * Determine appropriate vectors
+   */
+
+  p21[0] = p2[0]- p1[0];
+  p21[1] = p2[1]- p1[1];
+  p21[2] = p2[2]- p1[2];
+
+  /*
+   *  Get parametric location
+   */
+
+  num = p21[0]*(x[0]-p1[0]) + p21[1]*(x[1]-p1[1]) + p21[2]*(x[2]-p1[2]);
+  denom = _DOT_PRODUCT(p21,p21);
+
+  double tolerance = fabs (_tol_dist * num);
+  if ( fabs(denom) < tolerance ) {
+    closest = p1;
+  }
+
+  /*
+   *  If parametric coordinate is within 0<=p<=1, then the point is closest to
+   *  the line.  Otherwise, it's closest to a point at the end of the line.
+   */
+
+  else if ( denom <= 0.0 || (*t=num/denom) < 0.0 ) {
+    closest = p1;
+  }
+
+  else if ( *t > 1.0 ) {
+    closest = p2;
+  }
+
+  else {
+    closest = p21;
+    p21[0] = p1[0] + (*t)*p21[0];
+    p21[1] = p1[1] + (*t)*p21[1];
+    p21[2] = p1[2] + (*t)*p21[2];
+  }
+
+  closestPoint[0] = closest[0];
+  closestPoint[1] = closest[1];
+  closestPoint[2] = closest[2];
+
+  double v[3] = {closest[0] - x[0],
+                 closest[1] - x[1],
+                 closest[2] - x[2]};
+
+  return  _DOT_PRODUCT(v,v);
+}
+
+
+int
+_triangle_closest_point
+(
+  const double  x[3],
+  const double  v[9],
+  double       *closest_point,
+  double       *min_dist2,
+  double       *weights
+)
+{
+  const double *v0 = v;
+  const double *v1 = v + 3;
+  const double *v2 = v + 6;
+
+  double e1[3] = {v1[0] - v0[0],
+                  v1[1] - v0[1],
+                  v1[2] - v0[2]};
+  double e2[3] = {v2[0] - v0[0],
+                  v2[1] - v0[1],
+                  v2[2] - v0[2]};
+  double e[3]  = {x[0] - v0[0],
+                  x[1] - v0[1],
+                  x[2] - v0[2]};
+
+  double a = _DOT_PRODUCT(e1, e1);
+  double b = _DOT_PRODUCT(e1, e2);
+  double c = _DOT_PRODUCT(e2, e2);
+
+  double det = a*c - b*b;
+
+  if (det < 1e-14) {
+    return -1;
+  }
+
+  double r = _DOT_PRODUCT(e1, e);
+  double s = _DOT_PRODUCT(e2, e);
+
+
+  /* Solve for weights of orthogonal projection of point on triangle's plane */
+  double weights_local[3];
+  double *_weights = weights_local;
+  if (weights != NULL) {
+    _weights = weights;
+  }
+  _weights[1] = (r*c - s*b) / det;
+  _weights[2] = (s*a - r*b) / det;
+  _weights[0] = 1. - _weights[1] - _weights[2];
+
+  /* Projection inside triangle (= closest point) */
+  if ( _weights[0] >= 0.0 && _weights[0] <= 1.0 &&
+       _weights[1] >= 0.0 && _weights[1] <= 1.0 &&
+       _weights[2] >= 0.0 && _weights[2] <= 1.0 ) {
+
+    *min_dist2 = 0.;
+    for (int idim = 0; idim < 3; idim++) {
+      closest_point[idim] = v[idim] + _weights[1]*e1[idim] + _weights[2]*e2[idim];
+      double delta = x[idim] - closest_point[idim];
+      *min_dist2 += delta * delta;
+    }
+
+    return 1;
+  }
+
+  /* Projection inside triangle --> find closest point on triangle's boundary */
+  else {
+
+    double t01, t12, t20, d01, d12, d20, c01[3], c12[3], c20[3];
+
+    double t;
+    d01 = _line_distance(x, v0, v1, &t01, c01);
+    d12 = _line_distance(x, v1, v2, &t12, c12);
+    d20 = _line_distance(x, v2, v0, &t20, c20);
+
+    if (d01 <= d12 && d01 <= d20) {
+      *min_dist2 = d01;
+      t = t01;
+
+      closest_point[0] = c01[0];
+      closest_point[1] = c01[1];
+      closest_point[2] = c01[2];
+    }
+
+    else if (d12 <= d01 && d12 <= d20) {
+      *min_dist2 = d12;
+      t = t12;
+
+      closest_point[0] = c12[0];
+      closest_point[1] = c12[1];
+      closest_point[2] = c12[2];
+    }
+
+    else {
+      *min_dist2 = d20;
+      t = t20;
+
+      closest_point[0] = c20[0];
+      closest_point[1] = c20[1];
+      closest_point[2] = c20[2];
+    }
+
+    if (t < 0.) {
+      t = 0.;
+    } else if (t > 1.) {
+      t = 1.;
+    }
+
+    return 0;
+  }
+
+}
+
+void
+_interpolate_uv_from_tess
+(
+  double  coord[3],
+  int     ntris,
+  int    *tri_vtx,
+  double *vtx_coord,
+  double *vtx_uv,
+  double  uv[2]
+)
+{
+  double weights   [3];
+  double min_dist2 = DBL_MAX;
+
+  int in_tri = -1;
+  for (int i_tri=0; i_tri<ntris; ++i_tri) {
+    double tri_coords[9];
+    for (int i_vtx=0; i_vtx<3; ++i_vtx) {
+      int vtx_id = tri_vtx[3*i_tri+i_vtx]-1;
+      for (int j=0; j<3; ++j) {
+        tri_coords[3*i_vtx+j] = vtx_coord[3*vtx_id+j];
+      }
+    }
+    double l_closest_pt[3];
+    double l_weights   [3];
+    double l_min_dist2;
+    int status = _triangle_closest_point(coord,
+                                         tri_coords,
+                                         l_closest_pt,
+                                        &l_min_dist2,
+                                         l_weights);
+    if (status==-1) {
+      printf("ERROR: Degenerate triangle\n");
+      exit(2);
+    }
+    else {
+      if (min_dist2>l_min_dist2) {
+        min_dist2 = l_min_dist2;
+        for (int j=0; j<3; ++j) {
+          weights[j] = l_weights[j];
+        }
+        in_tri = i_tri;
+      }
+    }
+  }
+
+  if (in_tri==-1) {
+    printf("ERROR:Unlocated point (%f %f %f)\n", coord[0], coord[1], coord[2]);
+    exit(2);
+  }
+
+  int i_vtx0 = tri_vtx[3*in_tri  ]-1;
+  int i_vtx1 = tri_vtx[3*in_tri+1]-1;
+  int i_vtx2 = tri_vtx[3*in_tri+2]-1;
+  uv[0] = weights[0]*vtx_uv[2*i_vtx0  ] + 
+          weights[1]*vtx_uv[2*i_vtx1  ] +
+          weights[2]*vtx_uv[2*i_vtx2  ];
+  uv[1] = weights[0]*vtx_uv[2*i_vtx0+1] + 
+          weights[1]*vtx_uv[2*i_vtx1+1] +
+          weights[2]*vtx_uv[2*i_vtx2+1];
+
+}
 
 
 __HOST_AND_DEVICE__ int
