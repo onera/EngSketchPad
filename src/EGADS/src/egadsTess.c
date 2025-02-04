@@ -2055,58 +2055,6 @@ EG_fillTris(egObject *body, int iFace, egObject *face, egObject *tess,
   }
 
 
-  int n_vtx = np-1;
-  printf("Vertices np = %d\n", n_vtx);
-  printf("Vertices ntot = %d\n", ntot);
-  char filename[999];
-  sprintf(filename, "understand.vtk");
-
-  FILE *f = fopen(filename, "w");
-
-  fprintf(f, "# vtk DataFile Version 2.0\n");
-  fprintf(f, "mesh\n");
-  fprintf(f, "ASCII\n");
-  fprintf(f, "DATASET UNSTRUCTURED_GRID\n");
-
-  fprintf(f, "POINTS %d double\n", n_vtx);
-  for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
-    for (int j = 0; j < 3; j++) {
-      fprintf(f, "%.20lf ", ts->verts[i_vtx].xyz[j]);
-    }
-    fprintf(f, "\n");
-  }
-
-  fprintf(f, "POINT_DATA %d\n", n_vtx);
-
-  fprintf(f, "FIELD vtx_field %d\n", 3);
-
-  fprintf(f, "%s 1 %d int\n", "loop_number", n_vtx);
-  for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
-    fprintf(f, "%d \n", ts->verts[i_vtx].loop);
-  }
-  fprintf(f, "\n");
-
-  fprintf(f, "%s 1 %d int\n", "edge_number", n_vtx);
-  for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
-    fprintf(f, "%d \n", ts->verts[i_vtx].edge);
-  }
-  fprintf(f, "\n");
-
-  fprintf(f, "%s 1 %d int\n", "vertex_number", n_vtx);
-  for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
-    fprintf(f, "%d \n", ts->verts[i_vtx].index);
-  }
-  fprintf(f, "\n");
-
-  fclose(f);
-
-
-
-  printf("Vertices nfig8 = %d\n", nfig8);
-
-
-
-
   /* handle Loops that touch each other at a Node */
   for (mm = 0; mm < nfig8; mm++) {
     mp = 0;
@@ -2216,46 +2164,6 @@ EG_fillTris(egObject *body, int iFace, egObject *face, egObject *tess,
   }
 
   n = EG_fillArea(nloop, ts->loop, uvs, tris, &nfig8, 0, fa);
-
-
-
-  printf("n_tri = %d\n", n);
-
-
-  sprintf(filename, "triangles.vtk");
-
-  f = fopen(filename, "w");
-
-  fprintf(f, "# vtk DataFile Version 2.0\n");
-  fprintf(f, "mesh\n");
-  fprintf(f, "ASCII\n");
-  fprintf(f, "DATASET UNSTRUCTURED_GRID\n");
-
-  fprintf(f, "POINTS %d double\n", np);
-  for (int i_vtx = 0; i_vtx < np; i_vtx++) {
-    for (int j = 0; j < 3; j++) {
-      fprintf(f, "%.20lf ", ts->verts[i_vtx].xyz[j]);
-    }
-    fprintf(f, "\n");
-  }
-
-  fprintf(f, "CELLS %d %d\n", n, n + 3*n);
-  for (int i_elt = 0; i_elt < n; i_elt++) {
-    fprintf(f, "%d\n", 3);
-    for (int i = 3*i_elt; i < 3*(i_elt+1); i++) {
-      fprintf(f, "%d ", tris[i]-1);
-    }
-    fprintf(f, "\n");
-  }
-
-  fprintf(f, "CELL_TYPES %d\n", n);
-  for (int i_elt = 0; i_elt < n; i_elt++) {
-    fprintf(f, "%d\n", 5);
-  }
-
-  fclose(f);
-
-
 
 
   /* adjust for figure 8 configurations */
@@ -2448,73 +2356,6 @@ EG_fillTris(egObject *body, int iFace, egObject *face, egObject *tess,
   if (stat == EGADS_SUCCESS) {
     /* set it in the tessellation structure */
     EG_updateTris(ts, btess, iFace);
-
-
-    sprintf(filename, "face_%d_tesselation.vtk", iFace);
-
-    f = fopen(filename, "w");
-
-    fprintf(f, "# vtk DataFile Version 2.0\n");
-    fprintf(f, "mesh\n");
-    fprintf(f, "ASCII\n");
-    fprintf(f, "DATASET UNSTRUCTURED_GRID\n");
-
-    n_vtx = btess->tess2d[iFace-1].npts;
-    fprintf(f, "POINTS %d double\n", n_vtx);
-    for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
-      for (int j = 0; j < 3; j++) {
-        fprintf(f, "%.20lf ", btess->tess2d[iFace-1].xyz[3*i_vtx+j]);
-      }
-      fprintf(f, "\n");
-    }
-
-    int n = btess->tess2d[iFace-1].ntris;
-    fprintf(f, "CELLS %d %d\n", n, n + 3*n);
-    for (int i_elt = 0; i_elt < n; i_elt++) {
-      fprintf(f, "%d\n", 3);
-      for (int i = 3*i_elt; i < 3*(i_elt+1); i++) {
-        fprintf(f, "%d ", btess->tess2d[iFace-1].tris[i]-1);
-      }
-      fprintf(f, "\n");
-    }
-
-    fprintf(f, "CELL_TYPES %d\n", n);
-    for (int i_elt = 0; i_elt < n; i_elt++) {
-      fprintf(f, "%d\n", 5);
-    }
-
-    
-    fprintf(f, "POINT_DATA %d\n", n_vtx);
-
-    fprintf(f, "FIELD vtx_field %d\n", 4);
-
-    fprintf(f, "%s 1 %d double\n", "u", n_vtx);
-    for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
-      fprintf(f, "%.20lf \n", btess->tess2d[iFace-1].uv[2*i_vtx]);
-    }
-    fprintf(f, "\n");
-
-    fprintf(f, "%s 1 %d double\n", "v", n_vtx);
-    for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
-      fprintf(f, "%.20lf \n", btess->tess2d[iFace-1].uv[2*i_vtx+1]);
-    }
-    fprintf(f, "\n");
-
-    fprintf(f, "%s 1 %d int\n", "ptype", n_vtx);
-    for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
-      fprintf(f, "%d \n", btess->tess2d[iFace-1].ptype[i_vtx]);
-    }
-    fprintf(f, "\n");
-
-    fprintf(f, "%s 1 %d int\n", "pindex", n_vtx);
-    for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
-      fprintf(f, "%d \n", btess->tess2d[iFace-1].pindex[i_vtx]);
-    }
-    fprintf(f, "\n");
-
-    fclose(f);
-
-
 
   }
 
@@ -6534,13 +6375,18 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
           return EGADS_NOTFOUND;
         }
       }
+      EG_free(src_face_edges);
+      EG_free(tgt_face_edges);
     }
+  }
 
   edge_pairs = (int *) realloc(edge_pairs, 2*edge_pairs_idx[n_itrf]*sizeof(int));
 
   *edge_pairs_idx_out  = edge_pairs_idx;
   *edge_pairs_out      = edge_pairs;
   *edge_pairs_sign_out = edge_pairs_sign;
+
+  EG_free(n_face_edges);
 
   return EGADS_SUCCESS;
 }
@@ -6853,10 +6699,12 @@ _compute_node_pairs_from_face_pairs(egObject *object,
           return EGADS_NOTFOUND;
         }
       }
-
+      EG_free(src_face_vertices);
+      EG_free(tgt_face_vertices);
     }
   }
 
+  EG_free(n_face_vertices);
 
   node_pairs = (int *) realloc(node_pairs, 2*node_pairs_idx[n_itrf]*sizeof(int));
   *node_pairs_idx_out = node_pairs_idx;
@@ -7188,8 +7036,8 @@ _triangle_closest_point
 
     return 0;
   }
-
 }
+
 
 void
 _interpolate_uv_from_tess
@@ -7507,7 +7355,8 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
     
     for (int i_pair=edge_pairs_idx[i_itrf];
              i_pair<edge_pairs_idx[i_itrf+1]; ++i_pair) {
-      int src = edge_pairs[2*i_pair  ]-1;  
+
+      int src = edge_pairs[2*i_pair  ]-1;
       int tgt = edge_pairs[2*i_pair+1]-1;
 
       // > Prepare coeffs for t interpolation
@@ -7519,7 +7368,6 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
         t0_tgt = btess->tess1d[tgt].t[btess->tess1d[tgt].npts-1];
         t1_tgt = btess->tess1d[tgt].t[0];
       }
-
 
       btess->tess1d[tgt].npts = btess->tess1d[src].npts;
       EG_free(btess->tess1d[tgt].xyz);
@@ -7563,30 +7411,12 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
 
 
       int npts = btess->tess1d[src].npts;
-      int nf0  = btess->tess1d[src].faces[0].nface;
-      btess->tess1d[tgt].faces[0].nface = nf0;
+      int nf0  = btess->tess1d[tgt].faces[0].nface;
+      int nf1  = btess->tess1d[tgt].faces[1].nface;
       EG_free(btess->tess1d[tgt].faces[0].tric);
-      btess->tess1d[tgt].faces[0].tric = (int *) EG_alloc(npts*nf0 * sizeof(int));
-
-      if (nf0>0) {
-        for (int i = 0; i < npts-1; i++) {
-          for (int k = 0; k < nf0; k++) {
-            btess->tess1d[tgt].faces[0].tric[i*nf0+k] = btess->tess1d[src].faces[0].tric[i*nf0+k];
-          }
-        }
-      }
-
-      int nf1 = btess->tess1d[src].faces[1].nface;
-      btess->tess1d[tgt].faces[1].nface = nf1;
       EG_free(btess->tess1d[tgt].faces[1].tric);
-      btess->tess1d[tgt].faces[1].tric = (int *) EG_alloc(npts*nf0 * sizeof(int));
-      if (nf1>0) {
-        for (int i = 0; i < npts-1; i++) {
-          for (int k = 0; k < nf1; k++) {
-            btess->tess1d[tgt].faces[1].tric[i*nf1+k] = btess->tess1d[src].faces[1].tric[i*nf1+k];
-          }
-        }
-      }
+      btess->tess1d[tgt].faces[0].tric = (int *) EG_calloc(npts*nf0, sizeof(int));
+      btess->tess1d[tgt].faces[1].tric = (int *) EG_calloc(npts*nf1, sizeof(int));
     }
   }
 
@@ -7747,7 +7577,7 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
 
 
   /**
-   * Try to periodize surfaces
+   * Periodize surfaces
    */
   if (dim==3) {
 
@@ -7761,7 +7591,6 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
         int src = pairs[2*i_pair  ]-1;
         int tgt = pairs[2*i_pair+1]-1;
 
-        int     old_nvtx  = btess->tess2d[tgt].npts;
         int     old_ntris = btess->tess2d[tgt].ntris;
         double *old_xyz   = btess->tess2d[tgt].xyz;
         double *old_uv    = btess->tess2d[tgt].uv;
@@ -7939,8 +7768,23 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
             btess->tess1d[edge_tgt_id-1].faces[tgt_i_face].tric[i_tri] = btess->tess1d[edge_src_id-1].faces[src_i_face].tric[i_read];
           }
         }
+
+        EG_free(old_xyz);
+        EG_free(old_uv);
+        EG_free(old_tris);
+
       }
     }
+  }
+
+  if (dim==3) {
+    EG_free(node_pairs_idx);
+    EG_free(node_pairs);
+    EG_free(edge_pairs_idx);
+    EG_free(edge_pairs);
+    EG_free(edge_pairs_sign);
+    EG_free(face_edge_idx);
+    EG_free(face_edge);
   }
 
 
@@ -7971,17 +7815,6 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
       }
     if (i != 0) printf("\n");
   }
-
-
-
-
-  /**
-   * Build periodic vtx graph
-   */
-
-
-
-
 
 
 
