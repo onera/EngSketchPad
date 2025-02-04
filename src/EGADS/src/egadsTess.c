@@ -7257,10 +7257,11 @@ _interpolate_uv_from_tess
 
 __HOST_AND_DEVICE__ int
 EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
-                        int     n_itrf,
-                        int    *pairs_idx,
-                        int    *pairs,
-                        double *homo_matrices
+                        int      n_itrf,
+                        int     *pairs_idx,
+                        int     *pairs,
+                        double  *homo_matrices,
+                        int    **pairs_sign_out
                         // int *vtx_pairs_idx, int *vtx_pairs
                         )
 {
@@ -7350,6 +7351,7 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
                                       );
     edge_pairs_idx = pairs_idx;
     edge_pairs     = pairs;
+    *pairs_sign_out = edge_pairs_sign;
   }
   else if (dim==3) {
     _compute_node_pairs_from_face_pairs(object,
