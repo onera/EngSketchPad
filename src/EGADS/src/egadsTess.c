@@ -6427,7 +6427,7 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
 
               // > Compare coordinates
               int add_pt_match = 0;
-              double perio_tol = 1.e-10;
+              double perio_tol = 1.e-7;
               if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<perio_tol &&
                   fabs(xyz_src_periodize[1]-xyz_tgt[1])<perio_tol &&
                   fabs(xyz_src_periodize[2]-xyz_tgt[2])<perio_tol) {
@@ -6593,6 +6593,7 @@ _compute_node_pairs_from_face_pairs(egObject *object,
           if (k <= EGADS_SUCCESS) {
             printf("EGADS Error: Face %d -> Can not find Edge = %d!\n",
                    src, i_edge);
+            exit(2);
             return EGADS_NOTFOUND;
           }
           EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
@@ -6614,6 +6615,7 @@ _compute_node_pairs_from_face_pairs(egObject *object,
           if (k <= EGADS_SUCCESS) {
             printf("EGADS Error: Face %d -> Can not find Edge = %d!\n",
                    tgt, i_edge);
+            exit(2);
             return EGADS_NOTFOUND;
           }
           EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
@@ -6627,16 +6629,19 @@ _compute_node_pairs_from_face_pairs(egObject *object,
       if (n_face_nodes_src!=n_face_nodes_tgt) {
         printf("EGADS Error: Faces %d and %d unmatched (respectively %d and %d nodes)\n",
                src, tgt, n_face_nodes_src, n_face_nodes_tgt);
+        exit(2);
         return EGADS_NOTFOUND;
       }
       else {
         n_vtx_pairs += n_face_nodes_src+n_face_nodes_tgt;
         if (n_face_vertices[src]!=0) {
           printf("EGADS Error: Faces %d already referenced\n", src);
+          exit(2);
           return EGADS_NOTFOUND;
         }
         if (n_face_vertices[tgt]!=0) {
           printf("EGADS Error: Faces %d already referenced\n", tgt);
+          exit(2);
           return EGADS_NOTFOUND;
         }
         n_face_vertices[src] = n_face_nodes_src;
@@ -6679,6 +6684,7 @@ _compute_node_pairs_from_face_pairs(egObject *object,
           if (k <= EGADS_SUCCESS) {
             printf("EGADS Error: Face %d -> Can not find Edge = %d!\n",
                    src, i_edge);
+            exit(2);
             return EGADS_NOTFOUND;
           }
           int *vtx_senses = NULL;
@@ -6709,6 +6715,7 @@ _compute_node_pairs_from_face_pairs(egObject *object,
           if (k <= EGADS_SUCCESS) {
             printf("EGADS Error: Face %d -> Can not find Edge = %d!\n",
                    tgt, i_edge);
+            exit(2);
             return EGADS_NOTFOUND;
           }
           int *vtx_senses = NULL;
@@ -6749,7 +6756,7 @@ _compute_node_pairs_from_face_pairs(egObject *object,
           int ind_node_tgt = EG_indexBodyTopo(object, tgt_face_vertices[i_node_tgt]);
           
           // > Compare coordinates
-          double perio_tol = 1.e-10;
+          double perio_tol = 1.e-7;
           if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<perio_tol &&
               fabs(xyz_src_periodize[1]-xyz_tgt[1])<perio_tol &&
               fabs(xyz_src_periodize[2]-xyz_tgt[2])<perio_tol){
@@ -6780,6 +6787,7 @@ _compute_node_pairs_from_face_pairs(egObject *object,
         if (found_match==0) {
           printf("EGADS Error: Node %d from face %d do not match any node from face %d\n", 
             EG_indexBodyTopo(object, src_face_vertices[i_node_src]), src, tgt);
+          exit(2);
           return EGADS_NOTFOUND;
         }
       }
@@ -6871,7 +6879,7 @@ _compute_edge_sign_from_node_pairs(egObject *object,
           stat = EG_getTopology(nodes_tgt[i_node_tgt], &ref, &oclass, &ntype, xyz_tgt,
                                 &ndum, &dum, &senses);
           // int ind2 = EG_indexBodyTopo(object, nodes_tgt[i_node_tgt]);
-          double perio_tol = 1.e-12;
+          double perio_tol = 1.e-7;
           double xyz_src_periodize[3] = {xyz_src[0], xyz_src[1], xyz_src[2]};
           xyz_src_periodize[0] = hm[0]*xyz_src[0] + hm[1]*xyz_src[1] + hm[ 2]*xyz_src[2] + hm[ 3]*1.;
           xyz_src_periodize[1] = hm[4]*xyz_src[0] + hm[5]*xyz_src[1] + hm[ 6]*xyz_src[2] + hm[ 7]*1.;
@@ -7485,7 +7493,7 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
                            &btess->tess1d[tgt].t  [  tgt_i_vtx],
                 (double *) &dummy_new_coords);
 
-        double diff_eps = 1.e-14;
+        double diff_eps = 1.e-8;
         double dx = fabs(dummy_new_coords[0]-btess->tess1d[tgt].xyz[3*tgt_i_vtx  ]);
         double dy = fabs(dummy_new_coords[1]-btess->tess1d[tgt].xyz[3*tgt_i_vtx+1]);
         double dz = fabs(dummy_new_coords[2]-btess->tess1d[tgt].xyz[3*tgt_i_vtx+2]);
