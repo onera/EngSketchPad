@@ -91,6 +91,8 @@ __PROTO_H_AND_D__ int  EG_getGeometry( const egObject *geom, int *oclass,
                                        int *type, egObject **rGeom,
                                        /*@null@*/ int    **ivec,
                                        /*@null@*/ double **rvec );
+__PROTO_H_AND_D__ int  EG_evaluatX(const egObject *geom, /*@null@*/ const double *param,
+                                    double *result);
 __PROTO_H_AND_D__ int  EG_evaluate( const egObject *geom,
                                     /*@null@*/ const double *param,
                                     double *result );
@@ -6165,6 +6167,7 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
                                     int       n_itrf,
                                     int      *face_pairs_idx,
                                     int      *face_pairs,
+                                    double   *homo_matrices,
                                     int      *node_pairs_idx,
                                     int      *node_pairs,
                                     int     **edge_pairs_idx_out,
@@ -6254,6 +6257,8 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
     
     edge_pairs_idx[i_itrf+1] = edge_pairs_idx[i_itrf];
 
+    double *hm = &homo_matrices[16*i_itrf];
+
     for (int i_pair=face_pairs_idx[i_itrf]; i_pair<face_pairs_idx[i_itrf+1]; ++i_pair) {
       int src = face_pairs[2*i_pair  ]-1;  
       int tgt = face_pairs[2*i_pair+1]-1;
@@ -6302,7 +6307,8 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
       for (int i_src_edge=0; i_src_edge<n_face_edges[src]; ++i_src_edge) {
         int nnode_src;
         egObject **nodes_src;
-        EG_getTopology(src_face_edges[i_src_edge], &geom, &oclass, &mtype, NULL, &nnode_src,
+        double limits_src[2];
+        EG_getTopology(src_face_edges[i_src_edge], &geom, &oclass, &mtype, limits_src, &nnode_src,
                        &nodes_src, &senses);
 
         int node_match_tgt[2] = {0,0};
@@ -6317,7 +6323,6 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
             if (node_src_gid==node_pairs[2*i_node_cdt]) {
               node_match_tgt[i_node_src] = node_pairs[2*i_node_cdt+1];
               n_src_nodes_found++;
-              break;
             }
           }
         }
@@ -6331,7 +6336,8 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
         for (int i_tgt_edge=0; i_tgt_edge<n_face_edges[tgt]; ++i_tgt_edge) {
           int nnode_tgt;
           egObject **nodes_tgt;
-          EG_getTopology(tgt_face_edges[i_tgt_edge], &geom, &oclass, &mtype, NULL, &nnode_tgt,
+          double limits_tgt[2];
+          EG_getTopology(tgt_face_edges[i_tgt_edge], &geom, &oclass, &mtype, limits_tgt, &nnode_tgt,
                         &nodes_tgt, &senses);
 
           int nmatch = 0;
@@ -6353,8 +6359,8 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
           if (nmatch == 2) {
             int pairs[2] = {EG_indexBodyTopo(object, src_face_edges[i_src_edge]),
                             EG_indexBodyTopo(object, tgt_face_edges[i_tgt_edge])};
-            edge_pair_found = 1;
-            if (_unexisting_pair(i_write_pair, edge_pairs, pairs)) {
+            edge_pair_found ++;
+            if (edge_pair_found==1 && _unexisting_pair(i_write_pair, edge_pairs, pairs)) {
               if (match[0]==0 && match[1]==1) {
                 edge_pairs_sign[i_write_pair] = 1;
               }
@@ -6365,14 +6371,92 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
               edge_pairs[2*i_write_pair+1] = pairs[1];
               edge_pairs_idx[i_itrf+1] ++;
               i_write_pair++;
-              break;
+              // break;
             }
           }
         }
 
         if (edge_pair_found==0) {
           printf("EGADS Error: Edge %d has found no pair\n", EG_indexBodyTopo(object, src_face_edges[i_src_edge]));
+          exit(2);
           return EGADS_NOTFOUND;
+        }
+
+        if (edge_pair_found>1) {
+          // Note : If edge has multiple edges having 2 same pair points (exemple circle splitted in 2 arcs)
+          //        and same t for edges limits, maybe try with another point at t = 0.5*(t1+t2)
+          printf("EGADS Error: Edge %d has multiple pair\n", EG_indexBodyTopo(object, src_face_edges[i_src_edge]));
+
+          edge_pair_found = 0;
+          for (int i_tgt_edge=0; i_tgt_edge<n_face_edges[tgt]; ++i_tgt_edge) {
+            int nnode_tgt;
+            egObject **nodes_tgt;
+            double limits_tgt[2];
+            EG_getTopology(tgt_face_edges[i_tgt_edge], &geom, &oclass, &mtype, limits_tgt, &nnode_tgt,
+                          &nodes_tgt, &senses);
+
+            int nmatch = 0;
+            int match[2] = {0,0};
+            for (int i_node_tgt=0; i_node_tgt<nnode_tgt; ++i_node_tgt) {
+
+              int node_tgt_gid = EG_indexBodyTopo(object, nodes_tgt[i_node_tgt]);
+
+              if (node_tgt_gid==node_match_tgt[0]) {
+                match[i_node_tgt] = 0;
+                nmatch++;
+              }
+              if (node_tgt_gid==node_match_tgt[1]) {
+                match[i_node_tgt] = 1;
+                nmatch++;
+              }
+            }
+
+            if (nmatch == 2) {
+              double half_t_src = 0.5*(limits_src[0]+limits_src[1]);
+              double half_t_tgt = 0.5*(limits_tgt[0]+limits_tgt[1]);
+
+              double xyz_src[3]; 
+              double xyz_tgt[3]; 
+              EG_evaluatX(src_face_edges[i_src_edge], &half_t_src, xyz_src);
+              EG_evaluatX(tgt_face_edges[i_tgt_edge], &half_t_tgt, xyz_tgt);
+
+              double xyz_src_periodize[3] = {xyz_src[0], xyz_src[1], xyz_src[2]};
+              xyz_src_periodize[0] = hm[0]*xyz_src[0] + hm[1]*xyz_src[1] + hm[ 2]*xyz_src[2] + hm[ 3]*1.;
+              xyz_src_periodize[1] = hm[4]*xyz_src[0] + hm[5]*xyz_src[1] + hm[ 6]*xyz_src[2] + hm[ 7]*1.;
+              xyz_src_periodize[2] = hm[8]*xyz_src[0] + hm[9]*xyz_src[1] + hm[10]*xyz_src[2] + hm[11]*1.;
+
+              // > Compare coordinates
+              int add_pt_match = 0;
+              double perio_tol = 1.e-10;
+              if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<perio_tol &&
+                  fabs(xyz_src_periodize[1]-xyz_tgt[1])<perio_tol &&
+                  fabs(xyz_src_periodize[2]-xyz_tgt[2])<perio_tol) {
+                add_pt_match = 1;
+              }
+              int pairs[2] = {EG_indexBodyTopo(object, src_face_edges[i_src_edge]),
+                              EG_indexBodyTopo(object, tgt_face_edges[i_tgt_edge])};
+              int i_rewrite_pair = i_write_pair-1;
+              if (add_pt_match==1 && _unexisting_pair(i_write_pair, edge_pairs, pairs)) {
+                edge_pair_found ++;
+                if (match[0]==0 && match[1]==1) {
+                  edge_pairs_sign[i_rewrite_pair] = 1;
+                }
+                else if (match[0]==1 && match[1]==0) {
+                  edge_pairs_sign[i_rewrite_pair] = -1;
+                }
+                edge_pairs[2*i_rewrite_pair  ] = pairs[0];
+                edge_pairs[2*i_rewrite_pair+1] = pairs[1];
+                // break;
+              }
+            }
+          }
+          if (edge_pair_found>1) {
+            // Note : If edge has multiple edges having 2 same pair points (exemple circle splitted in 2 arcs)
+            //        and same t for edges limits, maybe try with another point at t = 0.5*(t1+t2)
+            printf("EGADS Error: Edge %d has multiple pair\n", EG_indexBodyTopo(object, src_face_edges[i_src_edge]));
+            exit(2);
+          }
+
         }
       }
       EG_free(src_face_edges);
@@ -6665,7 +6749,7 @@ _compute_node_pairs_from_face_pairs(egObject *object,
           int ind_node_tgt = EG_indexBodyTopo(object, tgt_face_vertices[i_node_tgt]);
           
           // > Compare coordinates
-          double perio_tol = 1.e-6;
+          double perio_tol = 1.e-10;
           if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<perio_tol &&
               fabs(xyz_src_periodize[1]-xyz_tgt[1])<perio_tol &&
               fabs(xyz_src_periodize[2]-xyz_tgt[2])<perio_tol){
@@ -7214,6 +7298,7 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
                                         n_itrf,
                                         pairs_idx,
                                         pairs,
+                                        homo_matrices,
                                         node_pairs_idx,
                                         node_pairs,
                                        &edge_pairs_idx,
