@@ -32,21 +32,18 @@ set_source_files_properties("${src_dir_util}/rational.c" TARGET_DIRECTORY egads 
 
 target_include_directories(egads
   PUBLIC
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/../../include>
+    $<BUILD_INTERFACE:${include_dir}/include>
     $<INSTALL_INTERFACE:include/>
   PRIVATE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/util/uvmap>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/util/>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/>
-    $<BUILD_INTERFACE:${include_dir}/include>
     ${OpenCASCADE_INCLUDE_DIR}
 )
 
 target_include_directories(uvmap PRIVATE
-  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/../../include>
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/util/uvmap>
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/util/>
-  $<BUILD_INTERFACE:${include_dir}/include>
   ${OpenCASCADE_INCLUDE_DIR}
 )
 

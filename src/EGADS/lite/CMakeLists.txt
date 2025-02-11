@@ -21,9 +21,9 @@ file(GLOB_RECURSE src_files_lite
   CONFIGURE_DEPENDS "${src_dir}/egadsRobust.c"
   CONFIGURE_DEPENDS "${src_dir}/egadsEffect.c"
   CONFIGURE_DEPENDS "${src_dir_util}/emp.c"
-  CONFIGURE_DEPENDS "${src_dir_util}/evaluate_lite.c"
+  CONFIGURE_DEPENDS "${src_dir_util}/evaluate.c"
   CONFIGURE_DEPENDS "${src_dir_util}/regQuads.c"
-  CONFIGURE_DEPENDS "${src_dir_util}/rational_lite.c"
+  CONFIGURE_DEPENDS "${src_dir_util}/rational.c"
 )
 
 
@@ -38,14 +38,13 @@ set_source_files_properties("${src_dir_util}/rational.c" TARGET_DIRECTORY egadsl
 
 target_include_directories(egadslite
   PUBLIC
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/../../include>
+    $<BUILD_INTERFACE:${include_dir}/include>
     $<INSTALL_INTERFACE:include/>
   PRIVATE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/util/uvmap>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/util/>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/src/>
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/lite/>
-    $<BUILD_INTERFACE:${include_dir}/include>
     ${OpenCASCADE_INCLUDE_DIR}
 )
 
