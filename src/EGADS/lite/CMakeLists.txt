@@ -82,4 +82,4 @@ install(EXPORT egadsliteTargets
   DESTINATION lib/cmake/egads
 )
 
-add_library(egads::egadslite ALIAS egadslite)
+add_library(EGADS::EGADSLITE ALIAS egadslite)
