@@ -6248,7 +6248,7 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
   }
 
   int i_write_pair = 0;
-  int *edge_pairs_idx  = EG_calloc(n_itrf      ,sizeof(int));
+  int *edge_pairs_idx  = EG_calloc((n_itrf+1)  ,sizeof(int));
   int *edge_pairs      = EG_alloc (n_edge_pairs*sizeof(int));
   int *edge_pairs_sign = EG_alloc (n_edge_pairs*sizeof(int));
 
@@ -6651,7 +6651,7 @@ _compute_node_pairs_from_face_pairs(egObject *object,
   }
 
   int i_write_pair = 0;
-  int *node_pairs_idx = malloc(n_itrf     *sizeof(int)); node_pairs_idx[0]=0;
+  int *node_pairs_idx = malloc((n_itrf+1) *sizeof(int)); node_pairs_idx[0]=0;
   int *node_pairs     = malloc(n_vtx_pairs*sizeof(int));
 
   for (int i_itrf=0; i_itrf<n_itrf; ++i_itrf) {
