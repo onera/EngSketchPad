@@ -4199,29 +4199,16 @@ EG_edgeThread(void *struc)
 }
 
 
-
+static
 void
 _write_edge_vtk
 (
   const char                 *filename,
   const int                   n_vtx,
   const double                vtx_coord[],
-  // const PDM_g_num_t           vtx_g_num[],
-  // const int                   n_elt,
-  // const PDM_Mesh_nodal_elt_t  elt_type[],
-  // const int                   elt_vtx_idx[],
-  // const int                   elt_vtx[],
-  // const PDM_g_num_t           elt_g_num[],
-  // const int                   n_elt_field,
-  // const char                 *elt_field_name[],
-  // const double               *elt_field[],
-  // const int                   n_vtx_field,
-  // const char                 *vtx_field_name[],
-  const double               vtx_field[]
+  const double                t[]
 )
 {
-  int n_vtx_field = 1;
-
   FILE *f = fopen(filename, "w");
 
   fprintf(f, "# vtk DataFile Version 2.0\n");
@@ -4237,86 +4224,161 @@ _write_edge_vtk
     fprintf(f, "\n");
   }
 
-  // fprintf(f, "CELLS %d %d\n", n_elt, n_elt + elt_vtx_idx[n_elt]);
-  // for (int i_elt = 0; i_elt < n_elt; i_elt++) {
-  //   fprintf(f, "%d\n", elt_vtx_idx[i_elt+1] - elt_vtx_idx[i_elt]);
-  //   for (int i = elt_vtx_idx[i_elt]; i < elt_vtx_idx[i_elt+1]; i++) {
-  //     fprintf(f, "%d ", elt_vtx[i] - 1);
-  //   }
-  //   fprintf(f, "\n");
-  // }
+  fprintf(f, "POINT_DATA %d\n", n_vtx);
 
-  // fprintf(f, "CELL_TYPES %d\n", n_elt);
-  // for (int i_elt = 0; i_elt < n_elt; i_elt++) {
-  //   int vtk_elt_type = _vtk_elt_type(elt_type[i_elt], 1);
-  //   fprintf(f, "%d\n", vtk_elt_type);
-  // }
-
-
-  // if (vtx_g_num != NULL) {
-  //   fprintf(f, "POINT_DATA %d\n", n_vtx);
-  //   fprintf(f, "SCALARS vtx_gnum long 1\n");
-  //   fprintf(f, "LOOKUP_TABLE default\n");
-  //   for (int i = 0; i < n_vtx; i++) {
-  //     fprintf(f, PDM_FMT_G_NUM"\n", vtx_g_num[i]);
-  //   }
-  // }
-
-  // if (n_vtx_field > 0) {
-  //   assert (vtx_field != NULL);
-
-  //   if (vtx_g_num == NULL) {
-    fprintf(f, "POINT_DATA %d\n", n_vtx);
-  //   }
-
-    fprintf(f, "FIELD vtx_field %d\n", n_vtx_field);
-    for (int i = 0; i < n_vtx_field; i++) {
-      // assert (vtx_field[i] != NULL);
-      // assert (vtx_field_name[i] != NULL);
-
-      // fprintf(f, "%s 1 %d double\n", vtx_field_name[i], n_vtx);
-      fprintf(f, "%s 1 %d double\n", "ParamT", n_vtx);
-      for (int j = 0; j < n_vtx; j++) {
-        // fprintf(f, "%lf ", vtx_field[i][j]);
-        fprintf(f, "%.20lf \n", vtx_field[j]);
-      }
-      fprintf(f, "\n");
-    }
-  // }
-
-
-  // if (elt_g_num != NULL) {
-  //   fprintf(f, "CELL_DATA %d\n", n_elt);
-  //   fprintf(f, "SCALARS elt_gnum long 1\n");
-  //   fprintf(f, "LOOKUP_TABLE default\n");
-  //   for (int i = 0; i < n_elt; i++) {
-  //     fprintf(f, PDM_FMT_G_NUM"\n", elt_g_num[i]);
-  //    }
-  // }
-
-  // if (n_elt_field > 0) {
-  //   assert (elt_field != NULL);
-
-  //   if (elt_g_num == NULL) {
-  //     fprintf(f, "CELL_DATA %d\n", n_elt);
-  //   }
-
-  //   fprintf(f, "FIELD elt_field %d\n", n_elt_field);
-  //   for (int i = 0; i < n_elt_field; i++) {
-  //     // assert (elt_field[i] != NULL);
-  //     assert (elt_field_name[i] != NULL);
-
-  //     fprintf(f, "%s 1 %d double\n", elt_field_name[i], n_elt);
-  //     for (int j = 0; j < n_elt; j++) {
-  //       fprintf(f, "%lf ", elt_field[i][j]);
-  //     }
-  //     fprintf(f, "\n");
-  //   }
-  // }
+  fprintf(f, "FIELD vtx_field 1\n");
+  fprintf(f, "ParamT 1 %d double\n", n_vtx);
+  for (int j = 0; j < n_vtx; j++) {
+    fprintf(f, "%.20lf \n", t[j]);
+  }
 
   fclose(f);
 }
 
+
+static
+void
+_write_tri_vtk
+(
+  const char                 *filename,
+  const int                   n_vtx,
+  const double               *vtx_coord,
+  const int                   n_elt,
+  const int                   elt_vtx[],
+  const double                uv[]
+)
+{
+  FILE *f = fopen(filename, "w");
+
+  fprintf(f, "# vtk DataFile Version 2.0\n");
+  fprintf(f, "mesh\n");
+  fprintf(f, "ASCII\n");
+  fprintf(f, "DATASET UNSTRUCTURED_GRID\n");
+
+  fprintf(f, "POINTS %d double\n", n_vtx);
+  for (int i_vtx = 0; i_vtx < n_vtx; i_vtx++) {
+    fprintf(f, "%.20lf %.20lf %.20lf ", vtx_coord[3*i_vtx  ],
+                                        vtx_coord[3*i_vtx+1],
+                                        vtx_coord[3*i_vtx+2]);
+    fprintf(f, "\n");
+  }
+
+  fprintf(f, "CELLS %d %d\n", n_elt, n_elt + 3*n_elt);
+  for (int i_elt = 0; i_elt < n_elt; i_elt++) {
+    fprintf(f, "%d\n", 3);
+    for (int i = 3*i_elt; i < 3*(i_elt+1); i++) {
+      fprintf(f, "%d ",elt_vtx[i]-1);
+    }
+    fprintf(f, "\n");
+  }
+
+  fprintf(f, "CELL_TYPES %d\n", n_elt);
+  for (int i_elt = 0; i_elt < n_elt; i_elt++) {
+    fprintf(f, "%d\n", 5);
+  }
+
+  fprintf(f, "POINT_DATA %d\n", n_vtx);
+  fprintf(f, "FIELD vtx_field %d\n", 2);
+
+  fprintf(f, "ParamU 1 %d double\n", n_vtx);
+  for (int j = 0; j < n_vtx; j++) {
+    fprintf(f, "%.20lf \n", uv[2*j]);
+  }
+  fprintf(f, "\n");
+
+  fprintf(f, "ParamV 1 %d double\n", n_vtx);
+  for (int j = 0; j < n_vtx; j++) {
+    fprintf(f, "%.20lf \n", uv[2*j+1]);
+  }
+  fprintf(f, "\n");
+
+  fclose(f);
+}
+
+
+static
+void
+_print_array_int
+(
+  int *array,
+  int size,
+  const char* header
+)
+{
+  printf(header);
+  printf("(%i) -> ", size);
+  for(int i = 0; i < size; ++i){
+    printf("%d ", array[i]);
+  }
+  printf("\n");
+}
+
+
+static
+void
+_print_tess2d_info(egTessel *btess,
+                   int id)
+{
+  printf("\n\nFace %d tess info:\n", id);
+  printf("  n_vertices = %d\n", btess->tess2d[id].npts);
+  _print_array_int(btess->tess2d[id].ptype,
+                   btess->tess2d[id].npts, 
+                   "  ptype");
+  _print_array_int(btess->tess2d[id].pindex,
+                   btess->tess2d[id].npts, 
+                   "  pindex");
+
+  printf("  Vertices :\n");
+  for (int i=0; i<btess->tess2d[id].npts; ++i) {
+    if (btess->tess2d[id].ptype[i]==0) {
+      printf("%d ", btess->tess2d[id].pindex[i]);
+    }
+  }
+  printf("\n");
+
+  printf("  Edges :\n");
+  for (int i=0; i<btess->tess2d[id].npts; ++i) {
+    if (btess->tess2d[id].ptype[i]!=0) {
+      printf("%d ", btess->tess2d[id].ptype[i]);
+    }
+  }
+  printf("\n");
+  printf("  Edges :\n");
+  for (int i=0; i<btess->tess2d[id].npts; ++i) {
+    if (btess->tess2d[id].ptype[i]!=0) {
+      printf("%d ", btess->tess2d[id].pindex[i]);
+    }
+  }
+  printf("\n");
+
+  printf("  n_triangles = %d\n", btess->tess2d[id].ntris);
+  _print_array_int(btess->tess2d[id].tris,
+                   3*btess->tess2d[id].ntris, 
+                   "  tris");
+  _print_array_int(btess->tess2d[id].tric,
+                   3*btess->tess2d[id].ntris, 
+                   "  tric");
+
+  printf("  Triangle edges :\n");
+  for (int i=0; i<3*btess->tess2d[id].ntris; ++i) {
+    if (btess->tess2d[id].tric[i]<0) {
+      printf("%d ", btess->tess2d[id].tric[i]);
+    }
+  }
+  printf("\n");
+ 
+  printf("  tfi = %d\n", btess->tess2d[id].tfi);
+
+  printf("  nframe = %d\n", btess->tess2d[id].nframe);
+  _print_array_int(btess->tess2d[id].frame,
+                   3*btess->tess2d[id].nframe, 
+                   "  frame");
+  
+  printf("  nloop = %d\n", btess->tess2d[id].nfrlps);
+  _print_array_int(btess->tess2d[id].frlps,
+                   btess->tess2d[id].nfrlps, 
+                   "  frlps");
+}
 
 
 __HOST_AND_DEVICE__ static int
@@ -6122,9 +6184,12 @@ EG_tessThread(void *struc)
 }
 
 
-int _unexisting_pair(int  n_pairs,
-                     int *pairs,
-                     int  pair[2])
+int _unexisting_pair
+(
+  int  n_pairs,
+  int *pairs,
+  int  pair[2]
+)
 {
   if (n_pairs==0) {
     return 1;
@@ -6139,7 +6204,9 @@ int _unexisting_pair(int  n_pairs,
 }
 
 
-int _find_matching_pair
+static
+int
+_find_matching_pair
 (
   int *pairs,
   int *pairs_sign,
@@ -6163,16 +6230,19 @@ int _find_matching_pair
 
 
 __HOST_AND_DEVICE__ int
-_compute_edge_pairs_from_node_pairs(egObject *object,
-                                    int       n_itrf,
-                                    int      *face_pairs_idx,
-                                    int      *face_pairs,
-                                    double   *homo_matrices,
-                                    int      *node_pairs_idx,
-                                    int      *node_pairs,
-                                    int     **edge_pairs_idx_out,
-                                    int     **edge_pairs_out,
-                                    int     **edge_pairs_sign_out)
+_compute_edge_pairs_from_node_pairs
+(
+  egObject *object,
+  int       n_itrf,
+  int      *face_pairs_idx,
+  int      *face_pairs,
+  double   *homo_matrices,
+  int      *node_pairs_idx,
+  int      *node_pairs,
+  int     **edge_pairs_idx_out,
+  int     **edge_pairs_out,
+  int     **edge_pairs_sign_out
+)
 {
   int oclass, mtype;
   int nnode, nedge, nface, nloop;
@@ -6193,7 +6263,7 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
       egObject *face_src = faces[src];
       egObject *face_tgt = faces[tgt];
 
-      // > Go though face connectivity to get face nodes
+      // > Go through face connectivity to get face nodes
       EG_getTopology(face_src, &geom, &oclass, &mtype, NULL, &nloop, &loops,
                    &senses);
       int n_face_edges_src = 0;
@@ -6269,7 +6339,7 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
       egObject **src_face_edges = malloc(n_face_edges[src] * sizeof(egObject *));
       egObject **tgt_face_edges = malloc(n_face_edges[tgt] * sizeof(egObject *));
 
-      // > Go though face connectivity to get face edges
+      // > Go through face connectivity to get face edges
       int i_face_edge_src = 0;
       EG_getTopology(face_src, &geom, &oclass, &mtype, NULL, &nloop, &loops,
                    &senses);
@@ -6303,7 +6373,7 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
         }
       }
 
-      // > Appair face edges
+      // > Pair up face edges
       for (int i_src_edge=0; i_src_edge<n_face_edges[src]; ++i_src_edge) {
         int nnode_src;
         egObject **nodes_src;
@@ -6384,7 +6454,7 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
 
         if (edge_pair_found>1) {
           // Note : If edge has multiple edges having 2 same pair points (exemple circle splitted in 2 arcs)
-          //        and same t for edges limits, maybe try with another point at t = 0.5*(t1+t2)
+          //        try with another point at t = 0.5*(t1+t2)
           printf("EGADS Error: Edge %d has multiple pair\n", EG_indexBodyTopo(object, src_face_edges[i_src_edge]));
 
           edge_pair_found = 0;
@@ -6451,8 +6521,7 @@ _compute_edge_pairs_from_node_pairs(egObject *object,
             }
           }
           if (edge_pair_found>1) {
-            // Note : If edge has multiple edges having 2 same pair points (exemple circle splitted in 2 arcs)
-            //        and same t for edges limits, maybe try with another point at t = 0.5*(t1+t2)
+            // Note : If edge has multiple edges having 3 same pair points... raise error
             printf("EGADS Error: Edge %d has multiple pair\n", EG_indexBodyTopo(object, src_face_edges[i_src_edge]));
             exit(2);
           }
@@ -6549,15 +6618,16 @@ _compute_periodic_face_edge
 
 
 __HOST_AND_DEVICE__ int
-_compute_node_pairs_from_face_pairs(egObject *object,
-                                    int       n_itrf,
-                                    int      *pairs_idx,
-                                    int      *pairs,
-                                    double   *homo_matrices,
-                                    // int **edge_pairs_out,
-                                    // int **edge_pair_signs_out,
-                                    int     **node_pairs_idx_out,
-                                    int     **node_pairs_out)
+_compute_node_pairs_from_face_pairs
+(
+  egObject *object,
+  int       n_itrf,
+  int      *pairs_idx,
+  int      *pairs,
+  double   *homo_matrices,
+  int     **node_pairs_idx_out,
+  int     **node_pairs_out
+)
 {
   int oclass, mtype;
   int nnode, nedge, nface, nloop;
@@ -6581,7 +6651,7 @@ _compute_node_pairs_from_face_pairs(egObject *object,
       egObject *face_src = faces[src];
       egObject *face_tgt = faces[tgt];
 
-      // > Go though face connectivity to get face nodes
+      // > Go through face connectivity to get face nodes
       int n_face_nodes_src = 0;
       EG_getTopology(face_src, &geom, &oclass, &mtype, NULL, &nloop, &loops,
                     &senses);
@@ -6670,7 +6740,7 @@ _compute_node_pairs_from_face_pairs(egObject *object,
       egObject **src_face_vertices = malloc(n_face_vertices[src] * sizeof(egObject *));
       egObject **tgt_face_vertices = malloc(n_face_vertices[tgt] * sizeof(egObject *));
 
-      // > Go though face connectivity to get face nodes
+      // > Go through face connectivity to get face nodes
       int i_face_vtx_src = 0;
       EG_getTopology(face_src, &geom, &oclass, &mtype, NULL, &nloop, &loops,
                     &senses);
@@ -6690,6 +6760,7 @@ _compute_node_pairs_from_face_pairs(egObject *object,
           int *vtx_senses = NULL;
           EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
                         &nodes, &vtx_senses);
+
           if (nnode==2) {
             if (senses[i_edge]==1) {
               src_face_vertices[i_face_vtx_src] = nodes[0];
@@ -6701,7 +6772,6 @@ _compute_node_pairs_from_face_pairs(egObject *object,
           }
         }
       }
-
 
       int i_face_vtx_tgt = 0;
       EG_getTopology(face_tgt, &geom, &oclass, &mtype, NULL, &nloop, &loops,
@@ -6762,7 +6832,6 @@ _compute_node_pairs_from_face_pairs(egObject *object,
               fabs(xyz_src_periodize[2]-xyz_tgt[2])<perio_tol){
             found_match = 1;
 
-
             int alrdy_exist = 0;
             for (int i_read=node_pairs_idx[i_itrf];
                      i_read<node_pairs_idx[i_itrf+1]; ++i_read) {
@@ -6774,7 +6843,6 @@ _compute_node_pairs_from_face_pairs(egObject *object,
               }
             }
             if (alrdy_exist==0) {
-              // printf("---> Do not exist yet\n");
               node_pairs_idx[i_itrf+1] +=1 ;
               node_pairs[i_write_pair++] = ind_node_src;
               node_pairs[i_write_pair++] = ind_node_tgt;
@@ -6807,33 +6875,29 @@ _compute_node_pairs_from_face_pairs(egObject *object,
 
 
 __HOST_AND_DEVICE__ int
-_compute_edge_sign_from_node_pairs(egObject *object,
-                         int       n_itrf,
-                         int      *pairs_idx, 
-                         int      *pairs, 
-                         double   *homo_matrices,
-                         int     **pair_signs_out //,
-                         // int     **node_pairs_idx_out,
-                         // int     **node_pairs_out
-                         )
+_compute_edge_sign_from_node_pairs
+(
+  egObject *object,
+  int       n_itrf,
+  int      *pairs_idx, 
+  int      *pairs, 
+  double   *homo_matrices,
+  int     **pair_signs_out
+)
 {
   int stat, oclass, mtype;
   double limits[2];
-  int nedge; //, nface, nshell, nmodel;
-  egObject **edges; //, **faces, **shells, **models;
+  int nedge;
+  egObject **edges;
   egObject *geom;
 
   stat = EG_getBodyTopos(object, NULL,  EDGE , &nedge , &edges);
   stat+=1;
   int *pair_signs     = calloc(  pairs_idx[n_itrf] , sizeof(int));
-  // int *node_pairs_idx = calloc(            n_itrf+1, sizeof(int));
-  // int *node_pairs     = calloc(4*pairs_idx[n_itrf] , sizeof(int));
 
   int i_write_sign = 0;
-  // int i_write_pair = 0;
   for (int i_itrf=0; i_itrf<n_itrf; ++i_itrf) {
 
-    // node_pairs_idx[i_itrf+1] = node_pairs_idx[i_itrf];
     double *hm = &homo_matrices[16*i_itrf];
 
     for (int i_pair=pairs_idx[i_itrf]; i_pair<pairs_idx[i_itrf+1]; ++i_pair) {
@@ -6848,7 +6912,7 @@ _compute_edge_sign_from_node_pairs(egObject *object,
       int nnode_src;
       egObject **nodes_src;
       stat = EG_getTopology(edge_src, &geom, &oclass, &mtype, limits,
-                          &nnode_src, &nodes_src, &senses);
+                           &nnode_src, &nodes_src, &senses);
 
       int nnode_tgt;
       egObject **nodes_tgt;
@@ -6857,10 +6921,6 @@ _compute_edge_sign_from_node_pairs(egObject *object,
       assert(nnode_src==2); assert(nnode_tgt==2);
 
       int src_tgt_node_pairs[] = {-1,-1};
-      // int *node_pairs = malloc(n_pairs*2*sizeof(int)); // Warning size valid for edges only
-      // for (int i_array=0; i_array<n_pairs*2; ++i_array) {
-      //   node_pairs[i_array] = -1;
-      // }
 
       int nmatch = 0;
       for (int i_node_src=0; i_node_src<nnode_src; ++i_node_src) {
@@ -6870,44 +6930,23 @@ _compute_edge_sign_from_node_pairs(egObject *object,
         stat = EG_getTopology(nodes_src[i_node_src], &ref, &oclass, &ntype, xyz_src,
                           &ndum, &dum, &senses);
 
-
-        // int ind = EG_indexBodyTopo(object, nodes_src[i_node_src]);
-
         for (int i_node_tgt=0; i_node_tgt<nnode_tgt; ++i_node_tgt) {
 
           double xyz_tgt[3];
           stat = EG_getTopology(nodes_tgt[i_node_tgt], &ref, &oclass, &ntype, xyz_tgt,
                                 &ndum, &dum, &senses);
-          // int ind2 = EG_indexBodyTopo(object, nodes_tgt[i_node_tgt]);
+
           double perio_tol = 1.e-7;
           double xyz_src_periodize[3] = {xyz_src[0], xyz_src[1], xyz_src[2]};
           xyz_src_periodize[0] = hm[0]*xyz_src[0] + hm[1]*xyz_src[1] + hm[ 2]*xyz_src[2] + hm[ 3]*1.;
           xyz_src_periodize[1] = hm[4]*xyz_src[0] + hm[5]*xyz_src[1] + hm[ 6]*xyz_src[2] + hm[ 7]*1.;
           xyz_src_periodize[2] = hm[8]*xyz_src[0] + hm[9]*xyz_src[1] + hm[10]*xyz_src[2] + hm[11]*1.;
+
           if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<perio_tol &&
               fabs(xyz_src_periodize[1]-xyz_tgt[1])<perio_tol &&
               fabs(xyz_src_periodize[2]-xyz_tgt[2])<perio_tol){
             nmatch++;
             src_tgt_node_pairs[i_node_src] = i_node_tgt;
-
-            // int alrdy_exist = 0;
-            // for (int i_read=node_pairs_idx[i_itrf];
-            //          i_read<node_pairs_idx[i_itrf+1]; ++i_read) {
-            //   // printf("Compare %d %d with %d %d\n", ind, ind2, node_pairs[2*i_read], node_pairs[2*i_read+1]);
-            //   if ((ind ==node_pairs[2*i_read] && ind2==node_pairs[2*i_read+1]) ||
-            //       (ind2==node_pairs[2*i_read] && ind ==node_pairs[2*i_read+1])) {
-            //     alrdy_exist = 1;
-            //     break;
-            //   }
-            // }
-            // if (alrdy_exist==0) {
-            //   // printf("---> Do not exist yet\n");
-            //   node_pairs_idx[i_itrf+1] +=1 ;
-            //   node_pairs[i_write_pair++] = ind;
-            //   node_pairs[i_write_pair++] = ind2;
-            // }
-            // break;
-
           }
         }
       }
@@ -6926,41 +6965,37 @@ _compute_edge_sign_from_node_pairs(egObject *object,
     }
   }
 
-
-
-  // node_pairs = (int *) realloc(node_pairs, node_pairs_idx[n_itrf]*sizeof(int));
-
-  // *node_pairs_idx_out = node_pairs_idx;
-  // *node_pairs_out     = node_pairs;
   *pair_signs_out     = pair_signs;
 
   return EGADS_SUCCESS;
 }
 
 
-double _periodic_paramt_interpolation(double t0_src, double t1_src,
-                                      double t0_tgt, double t1_tgt,
-                                      double t_src) {
-  // printf("     t0_src - t1_src = %f - %f\n", t0_src, t1_src);
-  // printf("     t0_tgt - t1_tgt = %f - %f\n", t0_tgt, t1_tgt);
-  // printf("     t_src = %f\n", t_src);
+static inline
+double
+_periodic_paramt_interpolation
+(
+  double t0_src, double t1_src,
+  double t0_tgt, double t1_tgt,
+  double t_src
+)
+{
   double s_src = (t_src-t0_src) / (t1_src-t0_src);
-  // printf("     s_src = %f\n", s_src);
   double t_tgt = s_src * (t1_tgt-t0_tgt) + t0_tgt;
-  // printf("     t_tgt = %f\n", t_tgt);
   return t_tgt;
 }
 
 
+static
 double
 _line_distance
 (
- const double x[3],
- const double p1[3],
- const double p2[3],
- double *t,
- double closestPoint[3]
- )
+  const double x[3],
+  const double p1[3],
+  const double p2[3],
+  double *t,
+  double closestPoint[3]
+)
 {
 
   const double _tol_dist = 1e-5;
@@ -7020,6 +7055,7 @@ _line_distance
 }
 
 
+static
 int
 _triangle_closest_point
 (
@@ -7142,6 +7178,8 @@ _interpolate_uv_from_tess
   double  uv[2]
 )
 {
+  // TODO : optimize using walking location or BVH/octree structure
+
   double weights   [3];
   double min_dist2 = DBL_MAX;
 
@@ -7196,15 +7234,20 @@ _interpolate_uv_from_tess
 
 
 __HOST_AND_DEVICE__ int
-EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
-                        int      n_itrf,
-                        int     *pairs_idx,
-                        int     *pairs,
-                        double  *homo_matrices,
-                        int    **pairs_sign_out
-                        // int *vtx_pairs_idx, int *vtx_pairs
-                        )
+EG_makePeriodicTessBody
+(
+  egObject  *object,
+  double    *paramx,
+  egObject **tess,
+  int        n_itrf,
+  int       *pairs_idx,
+  int       *pairs,
+  double    *homo_matrices,
+  int      **pairs_sign_out
+)
 {
+  int debug_verbose = 0;
+
   int      i, j, stat, outLevel, np, aStat, aType, aLen, ignore;
   double   params[3], rparm[3];
   void     **threads = NULL;
@@ -7235,15 +7278,6 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
     ebody  = (egEBody *) object->blind; 
     if (ebody->done == 0)            return EGADS_INDEXERR;
   }
-
-#ifndef LITE
-#ifdef WRITERESULT
-  // toto
-  char filename_out[999];
-  sprintf(filename_out, "egads_cad.step");
-  EG_saveModel(object, (const char *) filename_out);
-#endif
-#endif
 
 
   /**
@@ -7285,12 +7319,9 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
                                        pairs_idx,
                                        pairs,
                                        homo_matrices,
-                                      &edge_pairs_sign//,
-                                      // &node_pairs_idx,
-                                      // &node_pairs
-                                      );
-    edge_pairs_idx = pairs_idx;
-    edge_pairs     = pairs;
+                                      &edge_pairs_sign);
+    edge_pairs_idx  = pairs_idx;
+    edge_pairs      = pairs;
     *pairs_sign_out = edge_pairs_sign;
   }
   else if (dim==3) {
@@ -7321,11 +7352,11 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
                                &face_edge);
   }
 
-  // printf("edge_pair_signs = ");
-  // for (int i_pair=0; i_pair<n_pairs; ++i_pair) {
-  //   printf("%d ", edge_pair_signs[i_pair]);
-  // }
-  // printf("\n");
+  if (debug_verbose==1) {
+    _print_array_int(edge_pairs_idx ,                  n_itrf+1, "edge_pairs_idx  ::");
+    _print_array_int(edge_pairs     , 2*edge_pairs_idx[n_itrf] , "edge_pairs      ::");
+    _print_array_int(edge_pairs_sign,   edge_pairs_idx[n_itrf] , "edge_pairs_sign ::");
+  }
 
   /* get global settings */
   ignore = 0;
@@ -7377,70 +7408,6 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
   }
 
 
-
-  // > Debug output
-  char filename[999];
-  for (j = 0; j < btess->nEdge; j++) {
-    printf("write vtk i_edge = %d\n", j);
-    sprintf(filename, "edge_%d.vtk", j);
-    // printf("global = ");
-    // for (int i_vtx=0; i_vtx<btess->tess1d[j].npts; ++i_vtx) {
-    //   printf("%d ", btess->tess1d[j].global[i_vtx]);
-    // }
-    // printf("\n");
-    int npts = btess->tess1d[j].npts;
-    printf("npts = %d\n", npts);
-    if (npts>0) {
-
-      int nf0 = btess->tess1d[j].faces[0].nface;
-      printf("  faces[0].nface = %d\n", nf0);
-      if (nf0>0) {
-        printf("  faces[0].tric = ");
-        if (btess->tess1d[j].faces[0].tric!=NULL) {
-
-          for (int i = 0; i < npts-1; i++) {
-            for (int k = 0; k < nf0; k++) {
-              printf("%d ", btess->tess1d[j].faces[0].tric[i*nf0+k]);
-            }
-          }
-          printf("\n");
-        }
-      }
-
-      int nf1 = btess->tess1d[j].faces[1].nface;
-      printf("  faces[1].nface = %d\n", nf1);
-      if (nf1>0) {
-        printf("  faces[1].tric = ");
-        if (btess->tess1d[j].faces[1].tric!=NULL) {
-          for (int i = 0; i < npts-1; i++) {
-            for (int k = 0; k < nf1; k++) {
-              printf("%d ", btess->tess1d[j].faces[1].tric[i*nf1+k]);
-            }
-          }
-          printf("\n");
-        }
-      }
-
-      _write_edge_vtk(filename,
-                      btess->tess1d[j].npts,
-                      btess->tess1d[j].xyz,
-                      btess->tess1d[j].t);
-    }
-
-    // printf("  btess->tess1d[j].t = ");
-    // for (int i = 0; i < npts-1; i++) {
-    //   printf("%d ", btess->tess1d[j].t[i]);
-    // }
-    // printf("\n");
-
-    // printf("  btess->tess1d[j].global = ");
-    // for (int i = 0; i < npts-1; i++) {
-    //   printf("%d   ", btess->tess1d[j].global[i]);
-    // }
-    // printf("\n");
-  }
-
-
   // > Apply periodicity
   for (int i_itrf=0; i_itrf<n_itrf; ++i_itrf) {
     
@@ -7489,7 +7456,6 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
         double dummy_new_coords[3]; 
         EG_invEvaluateGuess(btess->tess1d[tgt].obj,
                            &btess->tess1d[tgt].xyz[3*tgt_i_vtx], 
-                           // &tmp_tgt_t,
                            &btess->tess1d[tgt].t  [  tgt_i_vtx],
                 (double *) &dummy_new_coords);
 
@@ -7512,43 +7478,6 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
       btess->tess1d[tgt].faces[1].tric = (int *) EG_calloc(npts*nf1, sizeof(int));
     }
   }
-
-
-
-  // /**
-  //  * Make edge_vtx_idx which will help to build vtx_dom_itrf
-  //  */
-  // int *edge_vtx_idx = malloc((btess->nEdge+1)*sizeof(int));
-  // edge_vtx_idx[0] = 0
-  // for (j = 0; j < btess->nEdge; j++) {
-  //   edge_vtx_idx[j+1] = edge_vtx_idx[j+1]+btess->tess1d[j].npts;
-  // }
-
-  // int *vtx_dom_itrf_idx = malloc(n_pairs*sizeof(int))
-  // for (int i_pair=0; i_pair<n_pairs; ++i_pair) {
-
-  // }
-
-
-  
-  // > Debug output
-  for (j = 0; j < btess->nEdge; j++) {
-    // printf("write vtk i_edge = %d\n", j);
-    sprintf(filename, "edge_after%d.vtk", j);
-    // printf("global = ");
-    // for (int i_vtx=0; i_vtx<btess->tess1d[j].npts; ++i_vtx) {
-    //   printf("%d ", btess->tess1d[j].global[i_vtx]);
-    // }
-    // printf("\n");
-    _write_edge_vtk(filename,
-                    btess->tess1d[j].npts,
-                    btess->tess1d[j].xyz,
-                    btess->tess1d[j].t);
-  }
-
-  // exit(1);
-
-
 
   stat = EG_makeObject(context, &ttess);
   if (stat != EGADS_SUCCESS) {
@@ -7675,6 +7604,10 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
   if (dim==3) {
 
 
+    /**
+     * Update tess 1D faces
+     */
+
     for (int i_itrf=0; i_itrf<n_itrf; ++i_itrf) {
       double *hm = &homo_matrices[16*i_itrf];
     
@@ -7708,7 +7641,6 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
           double y = btess->tess2d[src].xyz[3*i_vtx+1];
           double z = btess->tess2d[src].xyz[3*i_vtx+2];
 
-          // int tgt_i_vtx = i_vtx;
           btess->tess2d[tgt].xyz[3*i_vtx  ] = hm[0]*x + hm[1]*y + hm[ 2]*z + hm[ 3]*1.;
           btess->tess2d[tgt].xyz[3*i_vtx+1] = hm[4]*x + hm[5]*y + hm[ 6]*z + hm[ 7]*1.;
           btess->tess2d[tgt].xyz[3*i_vtx+2] = hm[8]*x + hm[9]*y + hm[10]*z + hm[11]*1.;
@@ -7754,7 +7686,6 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
           }
         }
 
-        // > Copy frame (initial triangulation ?)
         memcpy(btess->tess2d[tgt].frame,
                btess->tess2d[src].frame,
              3*btess->tess2d[src].nframe * sizeof(int));
@@ -7944,7 +7875,7 @@ EG_makePeriodicTessBody(egObject *object, double *paramx, egObject **tess,
     }
   }
 #endif
-  printf("FIXER LES LEAKS LOUL\n");
+
   return EGADS_SUCCESS;
 }
 
@@ -7964,7 +7895,7 @@ EG_makeTessBody(egObject *object, double *paramx, egObject **tess)
   const int    *aInts;
   const double *aReals;
   const char   *aStr;
-  printf("lala\n");
+
   *tess = NULL;
   if  (object == NULL)               return EGADS_NULLOBJ;
   if  (object->magicnumber != MAGIC) return EGADS_NOTOBJ;
