@@ -8,7 +8,6 @@
  *      See http://www.opensource.org/licenses/lgpl-2.1.php
  *
  */
-#define WRITERESULT
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -92,14 +91,14 @@ __PROTO_H_AND_D__ int  EG_getGeometry( const egObject *geom, int *oclass,
                                        /*@null@*/ int    **ivec,
                                        /*@null@*/ double **rvec );
 __PROTO_H_AND_D__ int  EG_evaluatX(const egObject *geom, /*@null@*/ const double *param,
-                                    double *result);
+                                   double *result);
 __PROTO_H_AND_D__ int  EG_evaluate( const egObject *geom,
                                     /*@null@*/ const double *param,
                                     double *result );
 __PROTO_H_AND_D__ int  EG_invEvaluate( const egObject *geom, double *xyz,
                                        double *param, double *result );
 __PROTO_H_AND_D__ int  EG_invEvaluateGuess( const egObject *geom, double *xyz,
-                                       double *param, double *result );
+                                            double *param, double *result );
 __PROTO_H_AND_D__ int  EG_arcLength( const egObject *geom, double t1, double t2,
                                      double *result );
 __PROTO_H_AND_D__ int  EG_isSame( const egObject *geo1, const egObject *geo2 );
@@ -117,11 +116,6 @@ __PROTO_H_AND_D__ int  EG_attributeRetSeq( const egObject *obj, const char *nam,
                                            /*@null@*/ const char   **str );
 __PROTO_H_AND_D__ int  EG_effectiveMap( egObject *EObject, double *eparam,
                                         egObject **Object, double *param );
-
-#ifdef WRITERESULT
-__PROTO_H_AND_D__ int  EG_saveModel( const egObject *model, const char *name );
-#endif
-
 #ifndef LITE
            extern int  EG_fullAttrs( const egObject *obj );
            extern int  EG_attributeDel( egObject *obj,
@@ -152,7 +146,7 @@ __PROTO_H_AND_D__ int  EG_mapSequen( egObject *src, egObject *dst,
 
 
 
-static
+static inline
 double
 _DOT_PRODUCT
 (
@@ -2056,7 +2050,6 @@ EG_fillTris(egObject *body, int iFace, egObject *face, egObject *tess,
     ts->loop[i] = ntot;
   }
 
-
   /* handle Loops that touch each other at a Node */
   for (mm = 0; mm < nfig8; mm++) {
     mp = 0;
@@ -2166,7 +2159,6 @@ EG_fillTris(egObject *body, int iFace, egObject *face, egObject *tess,
   }
 
   n = EG_fillArea(nloop, ts->loop, uvs, tris, &nfig8, 0, fa);
-
 
   /* adjust for figure 8 configurations */
   if (nfig8 != 0) {
@@ -2358,7 +2350,6 @@ EG_fillTris(egObject *body, int iFace, egObject *face, egObject *tess,
   if (stat == EGADS_SUCCESS) {
     /* set it in the tessellation structure */
     EG_updateTris(ts, btess, iFace);
-
   }
 
   return stat;
@@ -4316,8 +4307,11 @@ _print_array_int
 
 static
 void
-_print_tess2d_info(egTessel *btess,
-                   int id)
+_print_tess2d_info
+(
+  egTessel *btess,
+  int       id
+)
 {
   printf("\n\nFace %d tess info:\n", id);
   printf("  n_vertices = %d\n", btess->tess2d[id].npts);
@@ -6835,7 +6829,6 @@ _compute_node_pairs_from_face_pairs
             int alrdy_exist = 0;
             for (int i_read=node_pairs_idx[i_itrf];
                      i_read<node_pairs_idx[i_itrf+1]; ++i_read) {
-              // printf("Compare %d %d with %d %d\n", ind, ind2, node_pairs[2*i_read], node_pairs[2*i_read+1]);
               if ((ind_node_src==node_pairs[2*i_read] && ind_node_tgt==node_pairs[2*i_read+1]) ||
                   (ind_node_tgt==node_pairs[2*i_read] && ind_node_tgt==node_pairs[2*i_read+1])) {
                 alrdy_exist = 1;
@@ -7285,10 +7278,7 @@ EG_makePeriodicTessBody
    *  - 2D if 1 face
    *  - 3D if multiple face
    * TODO:
-   *    - how to improve ? give as argument ?
-   *    - issue with sphere, it is adding surface while loading CAD
-   * 
-   * 
+   *    - how to improve ? give it as argument ?
    */
   int dim = 0;
   stat = EG_getBodyTopos(object, NULL,  MODEL, &nmodel, &models);
@@ -7463,7 +7453,7 @@ EG_makePeriodicTessBody
         double dx = fabs(dummy_new_coords[0]-btess->tess1d[tgt].xyz[3*tgt_i_vtx  ]);
         double dy = fabs(dummy_new_coords[1]-btess->tess1d[tgt].xyz[3*tgt_i_vtx+1]);
         double dz = fabs(dummy_new_coords[2]-btess->tess1d[tgt].xyz[3*tgt_i_vtx+2]);
-        if (dx>diff_eps && dy>diff_eps && dz>diff_eps) {
+        if (dx>diff_eps || dy>diff_eps || dz>diff_eps) {
           printf("WARNING:: edge %d modified coords of point %d after t periodicization (dx, dy, dz = %20.16e %20.16e %20.16e)\n", tgt, tgt_i_vtx, dx, dy, dz);
         }
       }
@@ -7635,8 +7625,10 @@ EG_makePeriodicTessBody
         btess->tess2d[tgt].tric   = (int    *) EG_alloc(3*btess->tess2d[src].ntris * sizeof(int));
         btess->tess2d[tgt].frame  = (int    *) EG_alloc(3*btess->tess2d[src].nframe* sizeof(int));
         
-        // > Copy coordinate while applying transformation
+
         for (int i_vtx=0; i_vtx<btess->tess2d[src].npts; ++i_vtx) {
+
+          // > Copy coordinate while applying transformation
           double x = btess->tess2d[src].xyz[3*i_vtx  ];
           double y = btess->tess2d[src].xyz[3*i_vtx+1];
           double z = btess->tess2d[src].xyz[3*i_vtx+2];
@@ -7645,8 +7637,8 @@ EG_makePeriodicTessBody
           btess->tess2d[tgt].xyz[3*i_vtx+1] = hm[4]*x + hm[5]*y + hm[ 6]*z + hm[ 7]*1.;
           btess->tess2d[tgt].xyz[3*i_vtx+2] = hm[8]*x + hm[9]*y + hm[10]*z + hm[11]*1.;
 
-          double new_coords[3]; 
 
+          // > Interpolate UV from previous one
           _interpolate_uv_from_tess(&btess->tess2d[tgt].xyz[3*i_vtx],
                                     old_ntris,
                                     old_tris,
@@ -7654,45 +7646,22 @@ EG_makePeriodicTessBody
                                     old_uv,
                                    &btess->tess2d[tgt].uv[2*i_vtx]);
 
+          double new_coords[3]; 
           stat = EG_invEvaluateGuess(faces[tgt],
                                     &btess->tess2d[tgt].xyz[3*i_vtx],
                                     &btess->tess2d[tgt].uv [2*i_vtx],
-                           (double *) new_coords);
+                          (double *) new_coords);
 
-        }
-
-
-        // > Copy connectivities
-        //   tric is face face connectivity, except for boundary, we put cad edge id
-        for (int i_vtx=0; i_vtx<btess->tess2d[src].ntris; ++i_vtx) {
-          for (int j=0; j<3; ++j) {
-
-            int jj = 3-j-1;
-            btess->tess2d[tgt].tris[3*i_vtx+j] = btess->tess2d[src].tris[3*i_vtx+jj];
-            
-            if (btess->tess2d[src].tric[3*i_vtx+j]<0) {
-              int matching_edge = 0;
-              _find_matching_pair(&edge_pairs[2*edge_pairs_idx[i_itrf]],
-                                  NULL,
-                                  edge_pairs_idx[i_itrf+1]-edge_pairs_idx[i_itrf],
-                                  abs(btess->tess2d[src].tric[3*i_vtx+j]),
-                                  &matching_edge,
-                                  NULL);
-              btess->tess2d[tgt].tric[3*i_vtx+jj] = -matching_edge;
-            }
-            else {
-              btess->tess2d[tgt].tric[3*i_vtx+jj] = btess->tess2d[src].tric[3*i_vtx+j];
-            }
+          double diff_eps = 1.e-8;
+          double dx = fabs(new_coords[0]-btess->tess2d[tgt].xyz[3*i_vtx  ]);
+          double dy = fabs(new_coords[1]-btess->tess2d[tgt].xyz[3*i_vtx+1]);
+          double dz = fabs(new_coords[2]-btess->tess2d[tgt].xyz[3*i_vtx+2]);
+          if (dx>diff_eps || dy>diff_eps || dz>diff_eps) {
+            printf("WARNING:: face %d modified coords of point %d after uv periodicization (dx, dy, dz = %20.16e %20.16e %20.16e)\n", tgt, i_vtx, dx, dy, dz);
           }
-        }
-
-        memcpy(btess->tess2d[tgt].frame,
-               btess->tess2d[src].frame,
-             3*btess->tess2d[src].nframe * sizeof(int));
 
 
-        // > Copy node and edge while updating affiliations
-        for (int i_vtx=0; i_vtx<btess->tess2d[src].npts; ++i_vtx) {
+          // > Update vertice type (corner or edge)
           if (btess->tess2d[src].ptype[i_vtx]==0) { // Is node
             btess->tess2d[tgt].ptype[i_vtx] = 0;
             int matching_node = -1;
@@ -7744,6 +7713,35 @@ EG_makePeriodicTessBody
             btess->tess2d[tgt].pindex[i_vtx] = -1;
           }
         }
+
+
+        // > Copy connectivities
+        //   tric is face face connectivity, except for boundary, we put cad edge id
+        for (int i_tri=0; i_tri<btess->tess2d[src].ntris; ++i_tri) {
+          for (int j=0; j<3; ++j) {
+
+            int jj = 3-j-1;
+            btess->tess2d[tgt].tris[3*i_tri+j] = btess->tess2d[src].tris[3*i_tri+jj];
+            
+            if (btess->tess2d[src].tric[3*i_tri+j]<0) {
+              int matching_edge = 0;
+              _find_matching_pair(&edge_pairs[2*edge_pairs_idx[i_itrf]],
+                                  NULL,
+                                  edge_pairs_idx[i_itrf+1]-edge_pairs_idx[i_itrf],
+                                  abs(btess->tess2d[src].tric[3*i_tri+j]),
+                                  &matching_edge,
+                                  NULL);
+              btess->tess2d[tgt].tric[3*i_tri+jj] = -matching_edge;
+            }
+            else {
+              btess->tess2d[tgt].tric[3*i_tri+jj] = btess->tess2d[src].tric[3*i_tri+j];
+            }
+          }
+        }
+
+        memcpy(btess->tess2d[tgt].frame,
+               btess->tess2d[src].frame,
+             3*btess->tess2d[src].nframe * sizeof(int));
 
 
         // > Update edge->tri connectivity
