@@ -145,6 +145,8 @@ __PROTO_H_AND_D__ int  EG_mapSequen( egObject *src, egObject *dst,
 #endif
 
 
+static const double PERIO_TOL = 1.e-8;
+
 
 static inline
 double
@@ -543,15 +545,15 @@ _compute_edge_pairs_from_node_pairs
         return EGADS_NOTFOUND;
       }
       else {
-        n_edge_pairs += n_face_edges_src + n_face_edges_tgt;
+        n_edge_pairs += n_face_edges_src;
       }
     }
   }
 
   int i_write_pair = 0;
   int *edge_pairs_idx  = EG_alloc((n_itrf+1)*sizeof(int)); edge_pairs_idx[0] = 0;
-  int *edge_pairs      = EG_alloc(n_edge_pairs*sizeof(int));
-  int *edge_pairs_sign = EG_alloc(n_edge_pairs*sizeof(int));
+  int *edge_pairs      = EG_alloc(2*n_edge_pairs*sizeof(int));
+  int *edge_pairs_sign = EG_alloc(  n_edge_pairs*sizeof(int));
 
   for (int i_itrf=0; i_itrf<n_itrf; ++i_itrf) {
     
@@ -632,7 +634,6 @@ _compute_edge_pairs_from_node_pairs
               edge_pairs[2*i_write_pair+1] = pairs[1];
               edge_pairs_idx[i_itrf+1] ++;
               i_write_pair++;
-              // break;
             }
           }
         }
@@ -687,10 +688,9 @@ _compute_edge_pairs_from_node_pairs
 
               // > Compare coordinates
               int add_pt_match = 0;
-              double perio_tol = 1.e-7;
-              if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<perio_tol &&
-                  fabs(xyz_src_periodize[1]-xyz_tgt[1])<perio_tol &&
-                  fabs(xyz_src_periodize[2]-xyz_tgt[2])<perio_tol) {
+              if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<PERIO_TOL ||
+                  fabs(xyz_src_periodize[1]-xyz_tgt[1])<PERIO_TOL ||
+                  fabs(xyz_src_periodize[2]-xyz_tgt[2])<PERIO_TOL) {
                 add_pt_match = 1;
               }
               int pairs[2] = {EG_indexBodyTopo(object, face_edge[i_src_edge]),
@@ -706,7 +706,6 @@ _compute_edge_pairs_from_node_pairs
                 }
                 edge_pairs[2*i_rewrite_pair  ] = pairs[0];
                 edge_pairs[2*i_rewrite_pair+1] = pairs[1];
-                // break;
               }
             }
           }
@@ -761,6 +760,7 @@ _compute_periodic_face_edge
   for (int i_face=0; i_face<nface; ++i_face) {
     
     face_edge_idx[i_face+1] = face_edge_idx[i_face];
+
     EG_getTopology(faces[i_face], &geom, &oclass, &mtype, NULL, &nloop, &loops,
                   &senses);
     for (int i = 0; i < nloop; i++) {
@@ -806,7 +806,6 @@ _compute_node_pairs_from_face_pairs
 
   EG_getBodyTopos(object, NULL,  FACE, &nface , &faces);
   EG_getBodyTopos(object, NULL,  EDGE, &nedge , &edges);
-
 
   int i_write_pair = 0;
   int *node_pairs_idx = EG_alloc((n_itrf+1) *sizeof(int)); node_pairs_idx[0]=0;
@@ -880,10 +879,9 @@ _compute_node_pairs_from_face_pairs
           int ind_node_tgt = EG_indexBodyTopo(object, tgt_face_vertices[i_node_tgt]);
           
           // > Compare coordinates
-          double perio_tol = 1.e-7; //sortir
-          if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<perio_tol &&
-              fabs(xyz_src_periodize[1]-xyz_tgt[1])<perio_tol &&
-              fabs(xyz_src_periodize[2]-xyz_tgt[2])<perio_tol){
+          if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<PERIO_TOL ||
+              fabs(xyz_src_periodize[1]-xyz_tgt[1])<PERIO_TOL ||
+              fabs(xyz_src_periodize[2]-xyz_tgt[2])<PERIO_TOL){
             found_match = 1;
 
             int cdt_pair[2] = {ind_node_src, ind_node_tgt};
@@ -980,16 +978,15 @@ _compute_edge_sign_from_node_pairs
           EG_getTopology(nodes_tgt[i_node_tgt], &ref, &oclass, &ntype, xyz_tgt,
                         &ndum, &dum, &senses);
 
-          //sortir perio_tol en haut, TODO: faire une mise a l'échelle en fonction de la taille de la CAD
-          double perio_tol = 1.e-7;
+          // TODO: scale according to CAD bbox size ?
           double xyz_src_periodize[3] = {xyz_src[0], xyz_src[1], xyz_src[2]};
           xyz_src_periodize[0] = hm[0]*xyz_src[0] + hm[1]*xyz_src[1] + hm[ 2]*xyz_src[2] + hm[ 3]*1.;
           xyz_src_periodize[1] = hm[4]*xyz_src[0] + hm[5]*xyz_src[1] + hm[ 6]*xyz_src[2] + hm[ 7]*1.;
           xyz_src_periodize[2] = hm[8]*xyz_src[0] + hm[9]*xyz_src[1] + hm[10]*xyz_src[2] + hm[11]*1.;
 
-          if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<perio_tol &&
-              fabs(xyz_src_periodize[1]-xyz_tgt[1])<perio_tol &&
-              fabs(xyz_src_periodize[2]-xyz_tgt[2])<perio_tol){
+          if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<PERIO_TOL ||
+              fabs(xyz_src_periodize[1]-xyz_tgt[1])<PERIO_TOL ||
+              fabs(xyz_src_periodize[2]-xyz_tgt[2])<PERIO_TOL){
             nmatch++;
             src_tgt_node_pairs[i_node_src] = i_node_tgt;
           }
@@ -1326,11 +1323,10 @@ _periodize_edge_tesselation
                            &btess->tess1d[tgt].t  [  tgt_i_vtx],
                 (double *) &dummy_new_coords);
 
-        double diff_eps = 1.e-8; //sortir
         double dx = fabs(dummy_new_coords[0]-btess->tess1d[tgt].xyz[3*tgt_i_vtx  ]);
         double dy = fabs(dummy_new_coords[1]-btess->tess1d[tgt].xyz[3*tgt_i_vtx+1]);
         double dz = fabs(dummy_new_coords[2]-btess->tess1d[tgt].xyz[3*tgt_i_vtx+2]);
-        if (dx>diff_eps || dy>diff_eps || dz>diff_eps) {
+        if (dx>PERIO_TOL || dy>PERIO_TOL || dz>PERIO_TOL) {
           printf("WARNING:: edge %d modified coords of point %d after t periodicization (dx, dy, dz = %20.16e %20.16e %20.16e)\n", tgt, tgt_i_vtx, dx, dy, dz);
         }
       }
@@ -1451,11 +1447,10 @@ _periodize_surface_tesselation
                            &btess->tess2d[tgt].uv [2*i_vtx],
                  (double *) new_coords);
 
-        double diff_eps = 1.e-8; //sortir
         double dx = fabs(new_coords[0]-btess->tess2d[tgt].xyz[3*i_vtx  ]);
         double dy = fabs(new_coords[1]-btess->tess2d[tgt].xyz[3*i_vtx+1]);
         double dz = fabs(new_coords[2]-btess->tess2d[tgt].xyz[3*i_vtx+2]);
-        if (dx>diff_eps || dy>diff_eps || dz>diff_eps) {
+        if (dx>PERIO_TOL || dy>PERIO_TOL || dz>PERIO_TOL) {
           printf("WARNING:: face %d modified coords of point %d after uv periodicization (dx, dy, dz = %20.16e %20.16e %20.16e)\n", tgt, i_vtx, dx, dy, dz);
         }
 
