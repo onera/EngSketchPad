@@ -214,6 +214,7 @@ __ProtoExt__ int  EG_getTessGeom( const ego tess, int *sizes, double **xyz );
 
 __ProtoExt__ int  EG_makeTessBody( ego object, double *params, ego *tess );
 __ProtoExt__ int  EG_makePeriodicTessBody( ego object, double *params, ego *tess,
+                        int dim,
                         int n_itrf, int *pairs_idx, int *pairs, double *homogeneous_matrix,
                         int **pairs_sign_out);
 __ProtoExt__ int  EG_remakeTess( ego tess, int nobj, ego *objs,
