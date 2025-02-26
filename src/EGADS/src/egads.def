@@ -127,6 +127,7 @@ EG_setTessParam
 EG_makeTessGeom
 EG_getTessGeom
 EG_makeTessBody
+EG_makePeriodicTessBody
 EG_remakeTess
 EG_finishTess
 EG_mapTessBody

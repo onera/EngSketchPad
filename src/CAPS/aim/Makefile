@@ -37,9 +37,9 @@ endif
 ifdef TETGEN
 	(cd tetgen; make)
 endif
-ifneq ("$(ESP_ARCH)","CYGWIN64")
-	(cd cart3d; make)
-endif
+# ifneq ("$(ESP_ARCH)","CYGWIN64")
+# 	(cd cart3d; make)
+# endif
 ifdef SEACAS
 	(cd plato; make)
 	(cd sierraSD; make)
