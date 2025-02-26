@@ -101,6 +101,7 @@ __PROTO_H_AND_D__ int  EG_invEvaluateGuess( const egObject *geom, double *xyz,
                                             double *param, double *result );
 __PROTO_H_AND_D__ int  EG_arcLength( const egObject *geom, double t1, double t2,
                                      double *result );
+__HOST_AND_DEVICE__ int EG_getBoundingBox(const egObject *topo, double *bbox);
 __PROTO_H_AND_D__ int  EG_isSame( const egObject *geo1, const egObject *geo2 );
 __PROTO_H_AND_D__ int  EG_attributeRet( const egObject *obj, const char *name,
                                         int *atype, int *len,
@@ -518,6 +519,13 @@ _compute_edge_pairs_from_node_pairs
   int      **edge_pairs_sign_out
 )
 {
+  // > Compute bbox diag for tolerance
+  double diag, box[6];
+  EG_getBoundingBox(object, box);
+  diag = sqrt((box[0] - box[3]) * (box[0] - box[3]) +
+              (box[1] - box[4]) * (box[1] - box[4]) +
+              (box[2] - box[5]) * (box[2] - box[5]));
+
   int oclass, mtype;
   int nface;
   egObject **faces;
@@ -688,9 +696,9 @@ _compute_edge_pairs_from_node_pairs
 
               // > Compare coordinates
               int add_pt_match = 0;
-              if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<PERIO_TOL ||
-                  fabs(xyz_src_periodize[1]-xyz_tgt[1])<PERIO_TOL ||
-                  fabs(xyz_src_periodize[2]-xyz_tgt[2])<PERIO_TOL) {
+              if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<PERIO_TOL*diag &&
+                  fabs(xyz_src_periodize[1]-xyz_tgt[1])<PERIO_TOL*diag &&
+                  fabs(xyz_src_periodize[2]-xyz_tgt[2])<PERIO_TOL*diag) {
                 add_pt_match = 1;
               }
               int pairs[2] = {EG_indexBodyTopo(object, face_edge[i_src_edge]),
@@ -798,6 +806,13 @@ _compute_node_pairs_from_face_pairs
   int     **node_pairs_out
 )
 {
+  // > Compute bbox diag for tolerance
+  double diag, box[6];
+  EG_getBoundingBox(object, box);
+  diag = sqrt((box[0] - box[3]) * (box[0] - box[3]) +
+              (box[1] - box[4]) * (box[1] - box[4]) +
+              (box[2] - box[5]) * (box[2] - box[5]));
+
   int oclass, mtype;
   int nedge, nface;
   egObject **edges, **faces;
@@ -879,9 +894,9 @@ _compute_node_pairs_from_face_pairs
           int ind_node_tgt = EG_indexBodyTopo(object, tgt_face_vertices[i_node_tgt]);
           
           // > Compare coordinates
-          if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<PERIO_TOL ||
-              fabs(xyz_src_periodize[1]-xyz_tgt[1])<PERIO_TOL ||
-              fabs(xyz_src_periodize[2]-xyz_tgt[2])<PERIO_TOL){
+          if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<PERIO_TOL*diag &&
+              fabs(xyz_src_periodize[1]-xyz_tgt[1])<PERIO_TOL*diag &&
+              fabs(xyz_src_periodize[2]-xyz_tgt[2])<PERIO_TOL*diag){
             found_match = 1;
 
             int cdt_pair[2] = {ind_node_src, ind_node_tgt};
@@ -927,6 +942,13 @@ _compute_edge_sign_from_node_pairs
   int     **pair_signs_out
 )
 {
+  // > Compute bbox diag for tolerance
+  double diag, box[6];
+  EG_getBoundingBox(object, box);
+  diag = sqrt((box[0] - box[3]) * (box[0] - box[3]) +
+              (box[1] - box[4]) * (box[1] - box[4]) +
+              (box[2] - box[5]) * (box[2] - box[5]));
+
   int oclass, mtype;
   double limits[2];
   int nedge;
@@ -978,15 +1000,14 @@ _compute_edge_sign_from_node_pairs
           EG_getTopology(nodes_tgt[i_node_tgt], &ref, &oclass, &ntype, xyz_tgt,
                         &ndum, &dum, &senses);
 
-          // TODO: scale according to CAD bbox size ?
           double xyz_src_periodize[3] = {xyz_src[0], xyz_src[1], xyz_src[2]};
           xyz_src_periodize[0] = hm[0]*xyz_src[0] + hm[1]*xyz_src[1] + hm[ 2]*xyz_src[2] + hm[ 3]*1.;
           xyz_src_periodize[1] = hm[4]*xyz_src[0] + hm[5]*xyz_src[1] + hm[ 6]*xyz_src[2] + hm[ 7]*1.;
           xyz_src_periodize[2] = hm[8]*xyz_src[0] + hm[9]*xyz_src[1] + hm[10]*xyz_src[2] + hm[11]*1.;
 
-          if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<PERIO_TOL ||
-              fabs(xyz_src_periodize[1]-xyz_tgt[1])<PERIO_TOL ||
-              fabs(xyz_src_periodize[2]-xyz_tgt[2])<PERIO_TOL){
+          if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<PERIO_TOL*diag &&
+              fabs(xyz_src_periodize[1]-xyz_tgt[1])<PERIO_TOL*diag &&
+              fabs(xyz_src_periodize[2]-xyz_tgt[2])<PERIO_TOL*diag){
             nmatch++;
             src_tgt_node_pairs[i_node_src] = i_node_tgt;
           }
@@ -1263,6 +1284,7 @@ _interpolate_uv_from_tess
 static void
 _periodize_edge_tesselation
 (
+  egObject *object,
   egTessel *btess,
   int       n_itrf,
   int      *edge_pairs_idx,
@@ -1272,6 +1294,13 @@ _periodize_edge_tesselation
 )
 {
   int debug_output = 0;
+
+  // > Compute bbox diag for tolerance
+  double diag, box[6];
+  EG_getBoundingBox(object, box);
+  diag = sqrt((box[0] - box[3]) * (box[0] - box[3]) +
+              (box[1] - box[4]) * (box[1] - box[4]) +
+              (box[2] - box[5]) * (box[2] - box[5]));
 
   for (int i_itrf=0; i_itrf<n_itrf; ++i_itrf) {
     
@@ -1326,7 +1355,7 @@ _periodize_edge_tesselation
         double dx = fabs(dummy_new_coords[0]-btess->tess1d[tgt].xyz[3*tgt_i_vtx  ]);
         double dy = fabs(dummy_new_coords[1]-btess->tess1d[tgt].xyz[3*tgt_i_vtx+1]);
         double dz = fabs(dummy_new_coords[2]-btess->tess1d[tgt].xyz[3*tgt_i_vtx+2]);
-        if (dx>PERIO_TOL || dy>PERIO_TOL || dz>PERIO_TOL) {
+        if (dx>PERIO_TOL*diag && dy>PERIO_TOL*diag && dz>PERIO_TOL*diag) {
           printf("WARNING:: edge %d modified coords of point %d after t periodicization (dx, dy, dz = %20.16e %20.16e %20.16e)\n", tgt, tgt_i_vtx, dx, dy, dz);
         }
       }
@@ -1379,6 +1408,13 @@ _periodize_surface_tesselation
 {
   int debug_verbose = 0;
   int debug_output  = 0;
+
+  // > Compute bbox diag for tolerance
+  double diag, box[6];
+  EG_getBoundingBox(object, box);
+  diag = sqrt((box[0] - box[3]) * (box[0] - box[3]) +
+              (box[1] - box[4]) * (box[1] - box[4]) +
+              (box[2] - box[5]) * (box[2] - box[5]));
 
   int nface;
   egObject **faces;
@@ -1450,7 +1486,7 @@ _periodize_surface_tesselation
         double dx = fabs(new_coords[0]-btess->tess2d[tgt].xyz[3*i_vtx  ]);
         double dy = fabs(new_coords[1]-btess->tess2d[tgt].xyz[3*i_vtx+1]);
         double dz = fabs(new_coords[2]-btess->tess2d[tgt].xyz[3*i_vtx+2]);
-        if (dx>PERIO_TOL || dy>PERIO_TOL || dz>PERIO_TOL) {
+        if (dx>PERIO_TOL*diag && dy>PERIO_TOL*diag && dz>PERIO_TOL*diag) {
           printf("WARNING:: face %d modified coords of point %d after uv periodicization (dx, dy, dz = %20.16e %20.16e %20.16e)\n", tgt, i_vtx, dx, dy, dz);
         }
 
@@ -7624,7 +7660,8 @@ EG_makePeriodicTessBody
 
 
   // > Apply periodicity on edges
-  _periodize_edge_tesselation(btess,
+  _periodize_edge_tesselation(object,
+                              btess,
                               n_itrf,
                               edge_pairs_idx,
                               edge_pairs,
