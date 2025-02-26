@@ -734,6 +734,8 @@ _compute_edge_pairs_from_node_pairs
   *edge_pairs_out      = edge_pairs;
   *edge_pairs_sign_out = edge_pairs_sign;
 
+  EG_free(faces);
+
   return EGADS_SUCCESS;
 }
 
@@ -788,6 +790,8 @@ _compute_periodic_face_edge
 
   *face_edge_idx_out  = face_edge_idx;
   *face_edge_out      = face_edge;
+
+  EG_free(faces);
 
   return EGADS_SUCCESS;
 }
@@ -927,6 +931,10 @@ _compute_node_pairs_from_face_pairs
   *node_pairs_idx_out = node_pairs_idx;
   *node_pairs_out     = node_pairs;
 
+  EG_free(face_referencd);
+  EG_free(faces);
+  EG_free(edges);
+
   return EGADS_SUCCESS;
 }
 
@@ -1029,6 +1037,8 @@ _compute_edge_sign_from_node_pairs
   }
 
   *pair_signs_out     = pair_signs;
+
+  free(edges);
 
   return EGADS_SUCCESS;
 }
@@ -1654,13 +1664,7 @@ _periodize_surface_tesselation
     }
   }
 
-  EG_free(node_pairs_idx);
-  EG_free(node_pairs);
-  EG_free(edge_pairs_idx);
-  EG_free(edge_pairs);
-  EG_free(edge_pairs_sign);
-  EG_free(face_edge_idx);
-  EG_free(face_edge);
+  EG_free(faces);
 }
 
 
@@ -7805,6 +7809,13 @@ EG_makePeriodicTessBody
                                    homo_matrices,
                                    face_edge_idx,
                                    face_edge);
+    EG_free(face_edge_idx);
+    EG_free(face_edge);
+    EG_free(node_pairs_idx);
+    EG_free(node_pairs);
+    EG_free(edge_pairs_idx);
+    EG_free(edge_pairs);
+    EG_free(edge_pairs_sign);
   }
 
   if (dim==2 && debug_output == 1) {
