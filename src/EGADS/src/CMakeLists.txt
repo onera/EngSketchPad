@@ -26,6 +26,18 @@ list(FILTER src_files_util EXCLUDE REGEX ".*evaluateNR.c$")
 add_library(egads SHARED ${src_files})
 add_library(uvmap SHARED ${src_files_util})
 
+target_compile_definitions(egads PRIVATE _GNU_SOURCE=1)
+target_compile_definitions(uvmap PRIVATE _GNU_SOURCE=1)
+
+target_compile_definitions(egads PRIVATE NDEBUG=1)
+target_compile_definitions(uvmap PRIVATE NDEBUG=1)
+
+target_compile_definitions(egads PRIVATE No_Exception=1)
+target_compile_definitions(uvmap PRIVATE No_Exception=1)
+
+target_compile_definitions(egads PRIVATE _OCC64=1)
+target_compile_definitions(uvmap PRIVATE _OCC64=1)
+
 set_source_files_properties("${src_dir_util}/evaluate.c" TARGET_DIRECTORY egads PROPERTIES LANGUAGE CXX)
 set_source_files_properties("${src_dir_util}/rational.c" TARGET_DIRECTORY egads PROPERTIES LANGUAGE CXX)
 
