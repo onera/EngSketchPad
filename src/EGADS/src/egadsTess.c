@@ -304,10 +304,10 @@ _print_tess2d_info
   printf("\n\nFace %d tess info:\n", id);
   printf("  n_vertices = %d\n", btess->tess2d[id].npts);
   _print_array_int(btess->tess2d[id].ptype,
-                   btess->tess2d[id].npts, 
+                   btess->tess2d[id].npts,
                    "  ptype");
   _print_array_int(btess->tess2d[id].pindex,
-                   btess->tess2d[id].npts, 
+                   btess->tess2d[id].npts,
                    "  pindex");
 
   printf("  Vertices :\n");
@@ -335,10 +335,10 @@ _print_tess2d_info
 
   printf("  n_triangles = %d\n", btess->tess2d[id].ntris);
   _print_array_int(btess->tess2d[id].tris,
-                   3*btess->tess2d[id].ntris, 
+                   3*btess->tess2d[id].ntris,
                    "  tris");
   _print_array_int(btess->tess2d[id].tric,
-                   3*btess->tess2d[id].ntris, 
+                   3*btess->tess2d[id].ntris,
                    "  tric");
 
   printf("  Triangle edges :\n");
@@ -348,17 +348,17 @@ _print_tess2d_info
     }
   }
   printf("\n");
- 
+
   printf("  tfi = %d\n", btess->tess2d[id].tfi);
 
   printf("  nframe = %d\n", btess->tess2d[id].nframe);
   _print_array_int(btess->tess2d[id].frame,
-                   3*btess->tess2d[id].nframe, 
+                   3*btess->tess2d[id].nframe,
                    "  frame");
-  
+
   printf("  nloop = %d\n", btess->tess2d[id].nfrlps);
   _print_array_int(btess->tess2d[id].frlps,
-                   btess->tess2d[id].nfrlps, 
+                   btess->tess2d[id].nfrlps,
                    "  frlps");
 }
 
@@ -513,7 +513,7 @@ _compute_edge_pairs_from_node_pairs
   int       *node_pairs_idx,
   int       *node_pairs,
   int       *face_edge_idx,
-  egObject **face_edge,    
+  egObject **face_edge,
   int      **edge_pairs_idx_out,
   int      **edge_pairs_out,
   int      **edge_pairs_sign_out
@@ -539,7 +539,7 @@ _compute_edge_pairs_from_node_pairs
   for (int i_itrf=0; i_itrf<n_itrf; ++i_itrf) {
 
     for (int i_pair=face_pairs_idx[i_itrf]; i_pair<face_pairs_idx[i_itrf+1]; ++i_pair) {
-      int src = face_pairs[2*i_pair  ]-1;  
+      int src = face_pairs[2*i_pair  ]-1;
       int tgt = face_pairs[2*i_pair+1]-1;
 
       // > nedge in face
@@ -564,13 +564,13 @@ _compute_edge_pairs_from_node_pairs
   int *edge_pairs_sign = EG_alloc(  n_edge_pairs*sizeof(int));
 
   for (int i_itrf=0; i_itrf<n_itrf; ++i_itrf) {
-    
+
     edge_pairs_idx[i_itrf+1] = edge_pairs_idx[i_itrf];
 
     double *hm = &homo_matrices[16*i_itrf];
 
     for (int i_pair=face_pairs_idx[i_itrf]; i_pair<face_pairs_idx[i_itrf+1]; ++i_pair) {
-      int src = face_pairs[2*i_pair  ]-1;  
+      int src = face_pairs[2*i_pair  ]-1;
       int tgt = face_pairs[2*i_pair+1]-1;
 
       // > Pair up face edges
@@ -684,8 +684,8 @@ _compute_edge_pairs_from_node_pairs
               double half_t_src = 0.5*(limits_src[0]+limits_src[1]);
               double half_t_tgt = 0.5*(limits_tgt[0]+limits_tgt[1]);
 
-              double xyz_src[3]; 
-              double xyz_tgt[3]; 
+              double xyz_src[3];
+              double xyz_tgt[3];
               EG_evaluatX(face_edge[i_src_edge], &half_t_src, xyz_src);
               EG_evaluatX(face_edge[i_tgt_edge], &half_t_tgt, xyz_tgt);
 
@@ -766,9 +766,9 @@ _compute_periodic_face_edge
   int i_write = 0;
   int       *face_edge_idx = EG_calloc(nface+1,sizeof(int));
   egObject **face_edge     = EG_alloc (n_edge* sizeof(egObject));
-    
+
   for (int i_face=0; i_face<nface; ++i_face) {
-    
+
     face_edge_idx[i_face+1] = face_edge_idx[i_face];
 
     EG_getTopology(faces[i_face], &geom, &oclass, &mtype, NULL, &nloop, &loops,
@@ -832,14 +832,14 @@ _compute_node_pairs_from_face_pairs
   int *face_referencd = EG_calloc(nface, sizeof(int));
 
   for (int i_itrf=0; i_itrf<n_itrf; ++i_itrf) {
-    
+
     node_pairs_idx[i_itrf+1] = node_pairs_idx[i_itrf];
     double *hm = &homo_matrices[16*i_itrf];
 
     for (int i_pair=pairs_idx[i_itrf]; i_pair<pairs_idx[i_itrf+1]; ++i_pair) {
-      int src = pairs[2*i_pair  ]-1;  
+      int src = pairs[2*i_pair  ]-1;
       int tgt = pairs[2*i_pair+1]-1;
-   
+
       egObject *face_src = faces[src];
       egObject *face_tgt = faces[tgt];
 
@@ -847,7 +847,7 @@ _compute_node_pairs_from_face_pairs
       int n_face_nodes_src = face_edge_idx[src+1]-face_edge_idx[src];
       int n_face_nodes_tgt = face_edge_idx[tgt+1]-face_edge_idx[tgt];
 
-      // > Check same nnode for both faces and that face is not alrdy tagged 
+      // > Check same nnode for both faces and that face is not alrdy tagged
       if (n_face_nodes_src!=n_face_nodes_tgt) {
         printf("EGADS Error: Faces %d and %d unmatched (respectively %d and %d nodes)\n",
                src, tgt, n_face_nodes_src, n_face_nodes_tgt);
@@ -880,12 +880,13 @@ _compute_node_pairs_from_face_pairs
       egObject **dum;
       for (int i_node_src=0; i_node_src<n_face_nodes_src; ++i_node_src) {
         double xyz_src[3];
+
         EG_getTopology(src_face_vertices[i_node_src], &geom, &oclass, &mtype, xyz_src,
                       &ndum, &dum, &senses);
         double xyz_src_periodize[3] = {xyz_src[0], xyz_src[1], xyz_src[2]};
-            xyz_src_periodize[0] = hm[0]*xyz_src[0] + hm[1]*xyz_src[1] + hm[ 2]*xyz_src[2] + hm[ 3]*1.;
-            xyz_src_periodize[1] = hm[4]*xyz_src[0] + hm[5]*xyz_src[1] + hm[ 6]*xyz_src[2] + hm[ 7]*1.;
-            xyz_src_periodize[2] = hm[8]*xyz_src[0] + hm[9]*xyz_src[1] + hm[10]*xyz_src[2] + hm[11]*1.;
+        xyz_src_periodize[0] = hm[0]*xyz_src[0] + hm[1]*xyz_src[1] + hm[ 2]*xyz_src[2] + hm[ 3]*1.;
+        xyz_src_periodize[1] = hm[4]*xyz_src[0] + hm[5]*xyz_src[1] + hm[ 6]*xyz_src[2] + hm[ 7]*1.;
+        xyz_src_periodize[2] = hm[8]*xyz_src[0] + hm[9]*xyz_src[1] + hm[10]*xyz_src[2] + hm[11]*1.;
 
         int ind_node_src = EG_indexBodyTopo(object, src_face_vertices[i_node_src]);
 
@@ -894,9 +895,9 @@ _compute_node_pairs_from_face_pairs
           double xyz_tgt[3];
           EG_getTopology(tgt_face_vertices[i_node_tgt], &geom, &oclass, &mtype, xyz_tgt,
                         &ndum, &dum, &senses);
-          
+
           int ind_node_tgt = EG_indexBodyTopo(object, tgt_face_vertices[i_node_tgt]);
-          
+
           // > Compare coordinates
           if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<PERIO_TOL*diag &&
               fabs(xyz_src_periodize[1]-xyz_tgt[1])<PERIO_TOL*diag &&
@@ -916,7 +917,7 @@ _compute_node_pairs_from_face_pairs
           }
         }
         if (found_match==0) {
-          printf("EGADS Error: Node %d from face %d do not match any node from face %d\n", 
+          printf("EGADS Error: Node %d from face %d do not match any node from face %d\n",
             EG_indexBodyTopo(object, src_face_vertices[i_node_src]), src, tgt);
           exit(2);
           return EGADS_NOTFOUND;
@@ -944,8 +945,8 @@ _compute_edge_sign_from_node_pairs
 (
   egObject *object,
   int       n_itrf,
-  int      *pairs_idx, 
-  int      *pairs, 
+  int      *pairs_idx,
+  int      *pairs,
   double   *homo_matrices,
   int     **pair_signs_out
 )
@@ -1281,10 +1282,10 @@ _interpolate_uv_from_tess
   int i_vtx0 = tri_vtx[3*in_tri  ]-1;
   int i_vtx1 = tri_vtx[3*in_tri+1]-1;
   int i_vtx2 = tri_vtx[3*in_tri+2]-1;
-  uv[0] = weights[0]*vtx_uv[2*i_vtx0  ] + 
+  uv[0] = weights[0]*vtx_uv[2*i_vtx0  ] +
           weights[1]*vtx_uv[2*i_vtx1  ] +
           weights[2]*vtx_uv[2*i_vtx2  ];
-  uv[1] = weights[0]*vtx_uv[2*i_vtx0+1] + 
+  uv[1] = weights[0]*vtx_uv[2*i_vtx0+1] +
           weights[1]*vtx_uv[2*i_vtx1+1] +
           weights[2]*vtx_uv[2*i_vtx2+1];
 
@@ -1313,9 +1314,9 @@ _periodize_edge_tesselation
               (box[2] - box[5]) * (box[2] - box[5]));
 
   for (int i_itrf=0; i_itrf<n_itrf; ++i_itrf) {
-    
+
     double *hm = &homo_matrices[16*i_itrf];
-    
+
     for (int i_pair=edge_pairs_idx[i_itrf];
              i_pair<edge_pairs_idx[i_itrf+1]; ++i_pair) {
 
@@ -1356,9 +1357,9 @@ _periodize_edge_tesselation
                                                                                btess->tess1d[src].t[i_vtx]);
 
         // > Here coord is exact and t approximate, so we try to fix t but we do not update coords (maybe its an ISSUE ??)
-        double dummy_new_coords[3]; 
+        double dummy_new_coords[3];
         EG_invEvaluateGuess(btess->tess1d[tgt].obj,
-                           &btess->tess1d[tgt].xyz[3*tgt_i_vtx], 
+                           &btess->tess1d[tgt].xyz[3*tgt_i_vtx],
                            &btess->tess1d[tgt].t  [  tgt_i_vtx],
                 (double *) &dummy_new_coords);
 
@@ -1436,7 +1437,7 @@ _periodize_surface_tesselation
 
   for (int i_itrf=0; i_itrf<n_itrf; ++i_itrf) {
     double *hm = &homo_matrices[16*i_itrf];
-  
+
     for (int i_pair=face_pairs_idx[i_itrf];
              i_pair<face_pairs_idx[i_itrf+1]; ++i_pair) {
 
@@ -1465,7 +1466,7 @@ _periodize_surface_tesselation
       btess->tess2d[tgt].tris   = (int    *) EG_alloc(3*btess->tess2d[src].ntris * sizeof(int));
       btess->tess2d[tgt].tric   = (int    *) EG_alloc(3*btess->tess2d[src].ntris * sizeof(int));
       btess->tess2d[tgt].frame  = (int    *) EG_alloc(3*btess->tess2d[src].nframe* sizeof(int));
-      
+
 
       for (int i_vtx=0; i_vtx<btess->tess2d[src].npts; ++i_vtx) {
 
@@ -1487,7 +1488,7 @@ _periodize_surface_tesselation
                                   old_uv,
                                  &btess->tess2d[tgt].uv[2*i_vtx]);
 
-        double new_coords[3]; 
+        double new_coords[3];
         EG_invEvaluateGuess(faces[tgt],
                            &btess->tess2d[tgt].xyz[3*i_vtx],
                            &btess->tess2d[tgt].uv [2*i_vtx],
@@ -1505,7 +1506,7 @@ _periodize_surface_tesselation
         if (btess->tess2d[src].ptype[i_vtx]==0) { // Is node
           btess->tess2d[tgt].ptype[i_vtx] = 0;
           int matching_node = -1;
-          // Search matching target corner from source corner in nodes pairs 
+          // Search matching target corner from source corner in nodes pairs
           _find_matching_pair(&node_pairs[2*node_pairs_idx[i_itrf]],
                               NULL,
                               node_pairs_idx[i_itrf+1]-node_pairs_idx[i_itrf],
@@ -1563,7 +1564,7 @@ _periodize_surface_tesselation
 
           int jj = 3-j-1;
           btess->tess2d[tgt].tris[3*i_tri+j] = btess->tess2d[src].tris[3*i_tri+jj];
-          
+
           if (btess->tess2d[src].tric[3*i_tri+j]<0) {
             int matching_edge = 0;
             _find_matching_pair(&edge_pairs[2*edge_pairs_idx[i_itrf]],
@@ -7550,14 +7551,14 @@ EG_makePeriodicTessBody
   if  (EG_sameThread(context))       return EGADS_CNTXTHRD;
   cntx     = (egCntxt *) context->blind;
   if  (object->oclass == EBODY) {
-    ebody  = (egEBody *) object->blind; 
+    ebody  = (egEBody *) object->blind;
     if (ebody->done == 0)            return EGADS_INDEXERR;
   }
 
 
   /**
    * Translate periodicity face pairs into node and edge pairs
-   * and/or edge relative sign 
+   * and/or edge relative sign
    */
   int       *edge_pairs_idx  = NULL;
   int       *edge_pairs      = NULL;
@@ -7568,7 +7569,7 @@ EG_makePeriodicTessBody
   egObject **face_edge       = NULL;
   if (dim==2) {
     _compute_edge_sign_from_node_pairs(object,
-                                       n_itrf, 
+                                       n_itrf,
                                        pairs_idx,
                                        pairs,
                                        homo_matrices,
@@ -7828,6 +7829,19 @@ EG_makePeriodicTessBody
                    btess->tess2d[0].ntris,
                    btess->tess2d[0].tris,
                    btess->tess2d[0].uv);
+  }
+  else if (dim==3 && debug_output == 1) {
+    printf("Surf tess vtks (nface=%d)\n", nface);
+    char filename[999];
+    for (int i_face=0; i_face<nface; ++i_face) {
+      sprintf(filename, "surf_%d_tess.vtk", i_face);
+      _write_tri_vtk(filename,
+                      btess->tess2d[i_face].npts,
+                      btess->tess2d[i_face].xyz,
+                      btess->tess2d[i_face].ntris,
+                      btess->tess2d[i_face].tris,
+                      btess->tess2d[i_face].uv);
+    }
   }
 
 
