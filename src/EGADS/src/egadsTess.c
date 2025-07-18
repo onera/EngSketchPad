@@ -7522,7 +7522,11 @@ EG_makePeriodicTessBody
 )
 {
   int debug_verbose = 0;
-  int debug_output  = 0;
+  char *env_debug_tesselation = getenv("EGADS_DEBUG_TESSELATION");
+  int debug_tesselation = 0;
+  if (env_debug_tesselation != NULL) {
+    debug_tesselation = (int) atoi(env_debug_tesselation);
+  }
 
   int      i, j, stat, outLevel, np, aStat, aType, aLen, ignore;
   double   params[3], rparm[3];
@@ -7819,16 +7823,17 @@ EG_makePeriodicTessBody
     EG_free(edge_pairs_sign);
   }
 
-  if (dim==2 && debug_output == 1) {
-    printf("Surf tess vtks\n");
-    char filename[999];
-    sprintf(filename, "surf_tess.vtk");
-    _write_tri_vtk(filename,
-                   btess->tess2d[0].npts,
-                   btess->tess2d[0].xyz,
-                   btess->tess2d[0].ntris,
-                   btess->tess2d[0].tris,
-                   btess->tess2d[0].uv);
+  if (debug_tesselation == 1) {
+    for (int i_face=0; i_face<nface; ++i_face){
+      char filename[999];
+      sprintf(filename, "egads_surf_tess_%d.vtk", i_face);
+      _write_tri_vtk(filename,
+                     btess->tess2d[i_face].npts,
+                     btess->tess2d[i_face].xyz,
+                     btess->tess2d[i_face].ntris,
+                     btess->tess2d[i_face].tris,
+                     btess->tess2d[i_face].uv);
+    }
   }
   else if (dim==3 && debug_output == 1) {
     printf("Surf tess vtks (nface=%d)\n", nface);
