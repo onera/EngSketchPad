@@ -7835,20 +7835,6 @@ EG_makePeriodicTessBody
                      btess->tess2d[i_face].uv);
     }
   }
-  else if (dim==3 && debug_output == 1) {
-    printf("Surf tess vtks (nface=%d)\n", nface);
-    char filename[999];
-    for (int i_face=0; i_face<nface; ++i_face) {
-      sprintf(filename, "surf_%d_tess.vtk", i_face);
-      _write_tri_vtk(filename,
-                      btess->tess2d[i_face].npts,
-                      btess->tess2d[i_face].xyz,
-                      btess->tess2d[i_face].ntris,
-                      btess->tess2d[i_face].tris,
-                      btess->tess2d[i_face].uv);
-    }
-  }
-
 
 
 #ifdef CHECK
