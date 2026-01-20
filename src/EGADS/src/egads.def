@@ -120,6 +120,10 @@ EG_mapBody
 EG_mapBody2
 EG_matchBodyEdges
 EG_matchBodyFaces
+EG_explicit_face_edge_connectivity
+EG_compute_node_pairs_from_face_pairs
+EG_compute_edge_sign_from_node_pairs
+EG_compute_edge_pairs_from_node_pairs
 EG_fillTris
 EG_cleanupTess
 EG_baryFrame

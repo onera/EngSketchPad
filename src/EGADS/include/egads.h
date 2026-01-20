@@ -203,7 +203,18 @@ __ProtoExt__ int  EG_matchBodyEdges( const ego body1, const ego body2,
                                      double toler, int *nmatch, int **match );
 __ProtoExt__ int  EG_matchBodyFaces( const ego body1, const ego body2,
                                      double toler, int *nmatch, int **match );
-
+__ProtoExt__ int  EG_explicit_face_edge_connectivity( egObject *object,
+                                      int **face_edge_idx_out,
+                                      egObject ***face_edge_out );
+__ProtoExt__ int  EG_compute_node_pairs_from_face_pairs(egObject *object, int n_itrf, int *pairs_idx, int *pairs,
+                      double *homo_matrices, int *face_edge_idx,
+                      int **node_pairs_idx_out, int **node_pairs_out);
+__ProtoExt__ int  EG_compute_edge_sign_from_node_pairs(egObject *object, int n_itrf, int *pairs_idx, int *pairs,
+                     double *homo_matrices, int **pair_signs_out);
+__ProtoExt__ int  EG_compute_edge_pairs_from_node_pairs(egObject *object, int n_itrf, int *face_pairs_idx, int *face_pairs,
+                      double *homo_matrices, int *node_pairs_idx, int *node_pairs,
+                      int *face_edge_idx, egObject **face_edge,
+                      int **edge_pairs_idx_out, int **edge_pairs_out, int **edge_pairs_sign_out);
 /* tessellation functions */
 
 __ProtoExt__ int  EG_setTessParam( ego context, int iparam, double value,
