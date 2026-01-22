@@ -11940,6 +11940,7 @@ EG_periodize_cad_2d
   if (debug_verbose==1) {
     _print_array_int(patch_to_per_patch[0], nnode, "post patch_to_per_patch[NODE] :: ");
     _print_array_int(patch_to_per_patch[1], nedge, "post patch_to_per_patch[EDGE] :: ");
+    _print_array_int(patch_to_per_patch[2], nface, "post patch_to_per_patch[FACE] :: ");
   }
 
   free(nodes);
@@ -12034,11 +12035,16 @@ EG_periodize_cad_3d
   free(face_edge);
 
 
+  patch_to_per_patch[0] = (int *) malloc(nnode * sizeof(int));
+  patch_to_per_patch[1] = (int *) malloc(nedge * sizeof(int));
+  patch_to_per_patch[2] = (int *) malloc(nface * sizeof(int));
+
   int *node_matching = (int *) calloc(nnode, sizeof(int));
   for (int i_pair=0; i_pair<node_pairs_idx[1]; ++i_pair) {
     int i_node_src = node_pairs[2*i_pair  ];
     int i_node_tgt = node_pairs[2*i_pair+1];
     node_matching[i_node_src-1] = i_node_tgt;
+    patch_to_per_patch[0][i_node_src-1] = i_node_tgt;
   }
   free(node_pairs_idx);
   free(node_pairs);
@@ -12046,18 +12052,15 @@ EG_periodize_cad_3d
   int *edge_matching      = (int *) calloc(nedge, sizeof(int));
   int *edge_matching_sign = (int *) calloc(nedge, sizeof(int));
   for (int i_pair=0; i_pair<edge_pairs_idx[1]; ++i_pair) {
-    int i_node_src = edge_pairs[2*i_pair  ];
+    int i_edge_src = edge_pairs[2*i_pair  ];
     int i_edge_tgt = edge_pairs[2*i_pair+1];
-    edge_matching     [i_node_src-1] = i_edge_tgt;
-    edge_matching_sign[i_node_src-1] = edge_pairs_sign[i_pair];
+    edge_matching     [i_edge_src-1] = i_edge_tgt;
+    edge_matching_sign[i_edge_src-1] = edge_pairs_sign[i_pair];
+    patch_to_per_patch[1][i_edge_src-1] = i_edge_tgt;
   }
   free(edge_pairs_idx);
   free(edge_pairs);
   free(edge_pairs_sign);
-
-  patch_to_per_patch[0] = (int *) malloc(nnode * sizeof(int));
-  patch_to_per_patch[1] = (int *) malloc(nedge * sizeof(int));
-  patch_to_per_patch[2] = (int *) malloc(nface * sizeof(int));
 
   int nnew_node = 0;
   int nnew_edge = 0;
@@ -12168,7 +12171,7 @@ EG_periodize_cad_3d
             printf("\t\tiedge = %d :: ind edge = %d (sense = %d)\n", iedge, ind_edge, loop_senses[iedge]);
           }
 
-          if (edge_matching[ind_edge-1]==0) { // If in edge graph, take opposite
+          if (edge_matching[ind_edge-1]==0) { // If edge not in graph create new one
 
             egObject  *edge_geom;
             int       *edge_senses;
@@ -12289,7 +12292,7 @@ EG_periodize_cad_3d
              * EG_indexBodyTopo gives -1 (shouldn't when added to body)
              * --> for now we guess it
              */
-            patch_to_per_patch[1][ind_edge-1] = nedge+nnew_edge;
+            patch_to_per_patch[1][ind_edge-1] = nedge+nnew_edge+1; // sign is same because we build it the same way
 
             new_loop_edges [iedge] = new_edges[nnew_edge];
             new_loop_senses[iedge] = loop_senses[iedge];
@@ -12315,7 +12318,7 @@ EG_periodize_cad_3d
             int ind_match_edge = edge_matching[ind_edge-1];
             new_loop_edges [iedge] = edges[ind_match_edge-1];
             new_loop_senses[iedge] = loop_senses[iedge]*edge_matching_sign[ind_edge-1];
-            patch_to_per_patch[1][ind_edge-1] = ind_match_edge;
+            patch_to_per_patch[1][ind_edge-1] = ind_match_edge*edge_matching_sign[ind_edge-1];
 
           }
 
@@ -12376,9 +12379,12 @@ EG_periodize_cad_3d
       EG_makeTopology(context, fake_new_face_geom, face_oclass, face_mtype, NULL, face_nloop, new_face_loops, face_senses, &new_face);
       per_shell_faces[nface+nnew_face] = new_face;
 
-      patch_to_per_patch[2][ind_face-1] = nface+nnew_face;
+      patch_to_per_patch[2][ind_face-1] = nface+nnew_face+1;
       nnew_face++;
       free(new_face_loops);
+    }
+    else {
+      patch_to_per_patch[2][ind_face-1] = matching_face;
     }
 
   }
@@ -12411,6 +12417,7 @@ EG_periodize_cad_3d
   if (debug_verbose==1) {
     _print_array_int(patch_to_per_patch[0], nnode, "post patch_to_per_patch[NODE] :: ");
     _print_array_int(patch_to_per_patch[1], nedge, "post patch_to_per_patch[EDGE] :: ");
+    _print_array_int(patch_to_per_patch[2], nface, "post patch_to_per_patch[FACE] :: ");
   }
 
   free(nodes);
