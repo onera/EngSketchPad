@@ -1259,12 +1259,13 @@ EG_fillTopoObjs(egObject *object, egObject *topObj)
     if (Wire.Closed()) closed = 1;
     // more reliable for checking closure of Wires
     TopExp::Vertices(Wire, V1, V2);
-    if (!V1.IsNull() && !V2.IsNull())
+    if (!V1.IsNull() && !V2.IsNull()) {
       if (V1.IsSame(V2)) {
         closed = 1;
       } else {
         closed = 0;
       }
+    }
     BRepTools_WireExplorer ExpWE;
     for (ExpWE.Init(Wire); ExpWE.More(); ExpWE.Next()) ne++;
     if (ploop->surface != NULL) n = 2;
@@ -1816,12 +1817,13 @@ EG_traverseBody(egObject *context, int i, egObject *bobj, egObject *topObj,
     // more reliable for checking closure of Wires
     TopoDS_Vertex V1, V2;
     TopExp::Vertices(Wire, V1, V2);
-    if (!V1.IsNull() && !V2.IsNull())
+    if (!V1.IsNull() && !V2.IsNull()) {
       if (V1.IsSame(V2)) {
         closed = 1;
       } else {
         closed = 0;
       }
+    }
     BRepTools_WireExplorer ExpWE;
     for (ExpWE.Init(Wire); ExpWE.More(); ExpWE.Next()) ne++;
     if (outLevel > 2)
@@ -2170,7 +2172,7 @@ EG_getTolerance(const egObject *topo, double *tol)
       }
   } else {
     egadsBody *pbody = (egadsBody *) topo->blind;
-    if (pbody != NULL)
+    if (pbody != NULL) {
       if (topo->mtype == WIREBODY) {
         int nedge = pbody->edges.map.Extent();
         for (int i = 0; i < nedge; i++) {
@@ -2186,6 +2188,7 @@ EG_getTolerance(const egObject *topo, double *tol)
           if (toler > *tol) *tol = toler;
         }
       }
+    }
   }
 
   return EGADS_SUCCESS;
@@ -2469,7 +2472,7 @@ EG_getTopology(const egObject *topo, egObject **geom, int *oclass,
   } else if (topo->oclass == BODY) {
 
     egadsBody *pbody = (egadsBody *) topo->blind;
-    if (pbody != NULL)
+    if (pbody != NULL) {
       if (topo->mtype == WIREBODY) {
         *nChildren = pbody->loops.map.Extent();
         *children  = pbody->loops.objs;
@@ -2481,6 +2484,7 @@ EG_getTopology(const egObject *topo, egObject **geom, int *oclass,
         *children  = pbody->shells.objs;
         if (topo->mtype == SOLIDBODY) *senses = pbody->senses;
       }
+    }
 
   } else {
 
@@ -3552,12 +3556,13 @@ EG_makeTopology(egObject *context, /*@null@*/ egObject *geom,
     // more reliable for checking closure of Wires
     TopoDS_Vertex V1, V2;
     TopExp::Vertices(wire, V1, V2);
-    if (!V1.IsNull() && !V2.IsNull())
+    if (!V1.IsNull() && !V2.IsNull()) {
       if (V1.IsSame(V2)) {
         closed = 1;
       } else {
         closed = 0;
       }
+    }
 
     /* check that the first and last nodes in the children are the same
        for a closed loop */
@@ -3619,12 +3624,13 @@ EG_makeTopology(egObject *context, /*@null@*/ egObject *geom,
     obj->mtype         = OPEN;
     if (closed == 1) obj->mtype = CLOSED;
     EG_referenceObject(obj, context);
-    if (geom != NULL)
+    if (geom != NULL) {
       if (geom->mtype == PLANE) {
         ploop->surface = NULL;
       } else {
         EG_referenceTopObj(geom, obj);
       }
+    }
     if (mtype == CLOSED)
       if ((outLevel > 0) && (closed == 0))
         printf(" EGADS Info: Loop is Open (EG_makeTopology)!\n");
@@ -4047,12 +4053,13 @@ EG_makeTopology(egObject *context, /*@null@*/ egObject *geom,
     if (mtype == OPEN)
       if ((outLevel > 0) && (obj->mtype == CLOSED))
         printf(" EGADS Info: Shell is Closed (EG_makeTopology)!\n");
-    if (mtype == DEGENERATE)
+    if (mtype == DEGENERATE) {
       if (obj->mtype == OPEN) {
         printf(" EGADS Info: Shell is Open (EG_makeTopology)!\n");
       } else {
         printf(" EGADS Info: Shell is Closed (EG_makeTopology)!\n");
       }
+    }
 
   } else if (oclass == BODY) {
 
@@ -7497,7 +7504,7 @@ EG_getEdgeUVX(const egObject *face, const egObject *topo, int sense, double t,
     }
 
   // we are only in the Face once
-  if (found == 1)
+  if (found == 1) {
     if (pcurv != NULL) {
       stat = EG_evaluate(pcurv, &t, result);
       if (stat == EGADS_SUCCESS) {
@@ -7512,6 +7519,7 @@ EG_getEdgeUVX(const egObject *face, const egObject *topo, int sense, double t,
       uv[1] = P2d.Y();
       return EGADS_SUCCESS;
     }
+  }
 
   // the Edge in the Face more than once -- find it!
   found = 0;
@@ -7836,7 +7844,7 @@ EG_getEdgeUVeval(const egObject *face, const egObject *topo, int sense,
   }
 
   // we are only in the Face once
-  if (found == 1)
+  if (found == 1) {
     if (pcurv != NULL) {
       return  EG_evaluate(pcurv, &t, result);
     } else {
@@ -7850,6 +7858,7 @@ EG_getEdgeUVeval(const egObject *face, const egObject *topo, int sense,
       result[5] = V22d.Y();
       return EGADS_SUCCESS;
     }
+  }
 
   // the Edge in the Face more than once -- find it!
   found = 0;
