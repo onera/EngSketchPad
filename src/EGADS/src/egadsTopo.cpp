@@ -12030,6 +12030,8 @@ EG_periodize_cad_3d
     &edge_pairs,
     &edge_pairs_sign
   );
+  free(face_edge_idx);
+  free(face_edge);
 
 
   int *node_matching = (int *) calloc(nnode, sizeof(int));
@@ -12038,6 +12040,8 @@ EG_periodize_cad_3d
     int i_node_tgt = node_pairs[2*i_pair+1];
     node_matching[i_node_src-1] = i_node_tgt;
   }
+  free(node_pairs_idx);
+  free(node_pairs);
 
   int *edge_matching      = (int *) calloc(nedge, sizeof(int));
   int *edge_matching_sign = (int *) calloc(nedge, sizeof(int));
@@ -12047,7 +12051,9 @@ EG_periodize_cad_3d
     edge_matching     [i_node_src-1] = i_edge_tgt;
     edge_matching_sign[i_node_src-1] = edge_pairs_sign[i_pair];
   }
-
+  free(edge_pairs_idx);
+  free(edge_pairs);
+  free(edge_pairs_sign);
 
   patch_to_per_patch[0] = (int *) malloc(nnode * sizeof(int));
   patch_to_per_patch[1] = (int *) malloc(nedge * sizeof(int));
@@ -12329,6 +12335,8 @@ EG_periodize_cad_3d
               &new_loop_edges[loop_nedge+iedge]
             );
           }
+          free(edge_pcurve_ivec);
+          free(edge_pcurve_rvec);
         }
 
 
@@ -12370,15 +12378,18 @@ EG_periodize_cad_3d
 
       patch_to_per_patch[2][ind_face-1] = nface+nnew_face;
       nnew_face++;
+      free(new_face_loops);
     }
 
   }
-
+  free(node_matching);
+  free(edge_matching);
+  free(edge_matching_sign);
 
   // > Reassemble shell
   printf("EG_makeTopology SHELL\n");
   EG_makeTopology(context, NULL, SHELL, OPEN, NULL, nface+nnew_face, per_shell_faces, NULL, &new_shell);
-
+  free(per_shell_faces);
 
   // > Reassemble body
   egObject *body_geom;
@@ -12429,9 +12440,7 @@ EG_periodize_model
   egObject  **out_model
 )
 {
-  int debug_verbose = 1;
   int stat = EGADS_SUCCESS;
-
 
   /**
    * Create EGADS transform object from homogeneous mattix
@@ -12447,21 +12456,15 @@ EG_periodize_model
    * Get model object
    */
   egObject *model_geom;
-  int       nbody  , nshell , nface , nloop , nedge , nnode;
-  egObject **bodies,**shells,**faces,**loops,**edges,**nodes;
-  int oclass, nego, mtype, *senses;
-
+  int       nbody;
+  egObject **bodies;
+  int oclass, nego, *senses;
   EG_getTopology(model, &model_geom, &oclass, &nego, NULL, &nbody, &bodies, &senses);
 
   if (nbody>1) {
     printf("Expected 1 body, got %d\n", nbody);
     exit(EXIT_FAILURE);
   }
-  EG_getBodyTopos(bodies[0], NULL, NODE , &nnode , &nodes);
-  EG_getBodyTopos(bodies[0], NULL, EDGE , &nedge , &edges);
-  EG_getBodyTopos(bodies[0], NULL, LOOP , &nloop , &loops);
-  EG_getBodyTopos(bodies[0], NULL, FACE , &nface , &faces);
-  EG_getBodyTopos(bodies[0], NULL, SHELL, &nshell, &shells);
   assert(nshell==1);
 
   egObject *_out_model = NULL;
