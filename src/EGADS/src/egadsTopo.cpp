@@ -11768,18 +11768,18 @@ EG_periodize_cad_2d
     _print_array_int(node_matching, nnode, "node matching :: ");
   }
 
-  patch_to_per_patch[0] = (int *) malloc(nnode * sizeof(int));
-  patch_to_per_patch[1] = (int *) malloc(nedge * sizeof(int));
-  patch_to_per_patch[2] = (int *) malloc(nface * sizeof(int));
+  patch_to_per_patch[0] = (int *) EG_alloc(nnode * sizeof(int));
+  patch_to_per_patch[1] = (int *) EG_alloc(nedge * sizeof(int));
+  patch_to_per_patch[2] = (int *) EG_alloc(nface * sizeof(int));
 
   int nnew_node = 0;
   int nnew_edge = 0;
   int nnew_loop = 0;
   egObject  *new_shell;
   egObject  *new_face;
-  egObject **new_loops = (egObject **) malloc(nloop * sizeof(egObject *));
-  egObject **new_edges = (egObject **) malloc(nedge * sizeof(egObject *));
-  egObject **new_nodes = (egObject **) malloc(nnode * sizeof(egObject *));
+  egObject **new_loops = (egObject **) EG_alloc(nloop * sizeof(egObject *));
+  egObject **new_edges = (egObject **) EG_alloc(nedge * sizeof(egObject *));
+  egObject **new_nodes = (egObject **) EG_alloc(nnode * sizeof(egObject *));
   for (int iloop=0; iloop<nloop; ++iloop) {
     egObject  *loop_geom;
     int        loop_oclass, loop_mtype, loop_nedge;
@@ -11790,8 +11790,8 @@ EG_periodize_cad_2d
       printf("iloop = %d :: nedge = %d\n", iloop, loop_nedge);
     }
 
-    int       *new_loop_senses = (int       *) malloc(loop_nedge * sizeof(int       ));
-    egObject **new_loop_edges  = (egObject **) malloc(loop_nedge * sizeof(egObject *));
+    int       *new_loop_senses = (int       *) EG_alloc(loop_nedge * sizeof(int       ));
+    egObject **new_loop_edges  = (egObject **) EG_alloc(loop_nedge * sizeof(egObject *));
 
     for (int iedge=0; iedge<loop_nedge; ++iedge) {
 
@@ -12108,9 +12108,9 @@ EG_periodize_cad_3d
   free(face_edge);
 
 
-  patch_to_per_patch[0] = (int *) malloc(nnode * sizeof(int));
-  patch_to_per_patch[1] = (int *) malloc(nedge * sizeof(int));
-  patch_to_per_patch[2] = (int *) malloc(nface * sizeof(int));
+  patch_to_per_patch[0] = (int *) EG_alloc(nnode * sizeof(int));
+  patch_to_per_patch[1] = (int *) EG_alloc(nedge * sizeof(int));
+  patch_to_per_patch[2] = (int *) EG_alloc(nface * sizeof(int));
 
   int *node_matching = (int *) calloc(nnode, sizeof(int));
   for (int i_pair=0; i_pair<node_pairs_idx[1]; ++i_pair) {
@@ -12141,12 +12141,12 @@ EG_periodize_cad_3d
   int nnew_face = 0;
   egObject  *new_shell;
   egObject  *new_face;
-  egObject **new_loops = (egObject **) malloc(nloop * sizeof(egObject *));
-  egObject **new_edges = (egObject **) malloc(nedge * sizeof(egObject *));
-  egObject **new_nodes = (egObject **) malloc(nnode * sizeof(egObject *));
+  egObject **new_loops = (egObject **) EG_alloc(nloop * sizeof(egObject *));
+  egObject **new_edges = (egObject **) EG_alloc(nedge * sizeof(egObject *));
+  egObject **new_nodes = (egObject **) EG_alloc(nnode * sizeof(egObject *));
 
   int per_nface = 0;
-  egObject **per_shell_faces = (egObject **) malloc(2*nface * sizeof(egObject *));
+  egObject **per_shell_faces = (egObject **) EG_alloc(2*nface * sizeof(egObject *));
 
   // > Store CAD faces
   for (int iface=0; iface<nface; ++iface) {
@@ -12181,9 +12181,7 @@ EG_periodize_cad_3d
 
     if (matching_face == -1) { // Periodize faces that are not in periodic interface
 
-      egObject **new_face_loops = (egObject **) malloc(face_nloop * sizeof(egObject *));
-
-
+      egObject **new_face_loops = (egObject **) EG_alloc(face_nloop * sizeof(egObject *));
 
       egObject  *fake_new_face = NULL;
       EG_copyObject(faces[iface], eg_transform, &fake_new_face);
@@ -12218,11 +12216,9 @@ EG_periodize_cad_3d
         }
 
 
-        int       *new_loop_senses = (int       *) malloc(2*loop_nedge * sizeof(int       ));
-        egObject **new_loop_edges  = (egObject **) malloc(2*loop_nedge * sizeof(egObject *));
+        int       *new_loop_senses = (int       *) EG_alloc(2*loop_nedge * sizeof(int       ));
+        egObject **new_loop_edges  = (egObject **) EG_alloc(2*loop_nedge * sizeof(egObject *));
         for (int iedge=0; iedge<loop_nedge; ++iedge) {
-
-
 
           int     edge_pcurve_mtype;
           int    *edge_pcurve_ivec;
@@ -12470,12 +12466,15 @@ EG_periodize_cad_3d
   EG_makeTopology(context, NULL, SHELL, OPEN, NULL, nface+nnew_face, per_shell_faces, NULL, &new_shell);
   free(per_shell_faces);
 
+
+
   // > Reassemble body
   egObject *body_geom;
   int body_oclass, body_mtype, body_nloop;
   egObject **body_loops;
   int *body_senses;
   EG_getTopology(bodies[0], &body_geom, &body_oclass, &body_mtype, NULL, &body_nloop, &body_loops, &body_senses);
+
   egObject *body_shells[1] = {new_shell};
   egObject *per_body = NULL;
   printf("EG_makeTopology BODY\n");
