@@ -125,8 +125,9 @@ EG_compute_node_pairs_from_face_pairs(egObject *object, int n_itrf, int *pairs_i
                                       double *homo_matrices, int *face_edge_idx,
                                       int **node_pairs_idx_out, int **node_pairs_out);
 __PROTO_H_AND_D__ int
-EG_compute_edge_sign_from_node_pairs(egObject *object, int n_itrf, int *pairs_idx, int *pairs,
-                                     double *homo_matrices, int **pair_signs_out);
+EG_compute_edge_sign_and_node_pairs_from_edge_pairs(egObject *object, int n_itrf, int *pairs_idx, int *pairs,
+                                                    double *homo_matrices,
+                                                    int **out_node_pairs_idx, int **out_node_pairs, int **out_pair_signs);
 __PROTO_H_AND_D__ int
 EG_compute_edge_pairs_from_node_pairs(egObject *object, int n_itrf, int *face_pairs_idx, int *face_pairs,
                                       double *homo_matrices, int *node_pairs_idx, int *node_pairs,
@@ -6931,12 +6932,18 @@ EG_makePeriodicTessBody
   egObject **face_edge       = NULL;
 #ifndef LITE // petit mot (demander a bastien)
   if (dim==2) {
-    EG_compute_edge_sign_from_node_pairs(object,
-                                       n_itrf,
-                                       pairs_idx,
-                                       pairs,
-                                       homo_matrices,
-                                      &edge_pairs_sign);
+    EG_compute_edge_sign_and_node_pairs_from_edge_pairs(
+      object,
+      n_itrf,
+      pairs_idx,
+      pairs,
+      homo_matrices,
+      &node_pairs_idx,
+      &node_pairs,
+      &edge_pairs_sign
+    );
+    free(node_pairs_idx);
+    free(node_pairs);
     edge_pairs_idx  = pairs_idx;
     edge_pairs      = pairs;
     *pairs_sign_out = edge_pairs_sign;

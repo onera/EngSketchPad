@@ -11305,16 +11305,20 @@ EG_compute_node_pairs_from_face_pairs
 
 
 int
-EG_compute_edge_sign_from_node_pairs
+EG_compute_edge_sign_and_node_pairs_from_edge_pairs
 (
   egObject *object,
   int       n_itrf,
   int      *pairs_idx,
   int      *pairs,
   double   *homo_matrices,
-  int     **pair_signs_out
+  int     **out_node_pairs_idx,
+  int     **out_node_pairs,
+  int     **out_pair_signs
 )
 {
+  int debug_verbose = 0;
+
   // > Compute bbox diag for tolerance
   double diag, box[6];
   EG_getBoundingBox(object, box);
@@ -11329,9 +11333,12 @@ EG_compute_edge_sign_from_node_pairs
   egObject *geom;
 
   EG_getBodyTopos(object, NULL,  EDGE , &nedge , &edges);
+  int *node_pairs_idx = (int *) EG_alloc (            (n_itrf+1) * sizeof(int));
+  int *node_pairs     = (int *) EG_calloc(4*(pairs_idx[n_itrf]+1), sizeof(int));
+  int *pair_signs     = (int *) EG_calloc(   pairs_idx[n_itrf]   , sizeof(int));
+  node_pairs_idx[0] = 0;
 
-  int *pair_signs = (int *) EG_calloc(pairs_idx[n_itrf], sizeof(int));
-
+  int i_write_node = 0;
   int i_write_sign = 0;
   for (int i_itrf=0; i_itrf<n_itrf; ++i_itrf) {
 
@@ -11342,6 +11349,14 @@ EG_compute_edge_sign_from_node_pairs
       int src = pairs[2*i_pair  ]-1;
       int tgt = pairs[2*i_pair+1]-1;
 
+      if (debug_verbose==1) {
+        printf("pair n°%d : %d - > %d\n",
+          i_pair-pairs_idx[i_itrf],
+          src+1,
+          tgt+1
+        );
+      }
+
       egObject *edge_src = edges[src];
       egObject *edge_tgt = edges[tgt];
 
@@ -11351,11 +11366,29 @@ EG_compute_edge_sign_from_node_pairs
       EG_getTopology(edge_src, &geom, &oclass, &mtype, limits,
                     &nnode_src, &nodes_src, &senses);
 
+      if (debug_verbose==1) {
+        printf(
+          "\t edge %d vertices %d, %d\n",
+          src+1,
+          EG_indexBodyTopo(object, nodes_src[0]),
+          EG_indexBodyTopo(object, nodes_src[1])
+        );
+      }
+
       int nnode_tgt;
       egObject **nodes_tgt;
       EG_getTopology(edge_tgt, &geom, &oclass, &mtype, limits,
-                   &nnode_tgt, &nodes_tgt, &senses);
+                    &nnode_tgt, &nodes_tgt, &senses);
       assert(nnode_src==2); assert(nnode_tgt==2);
+
+      if (debug_verbose==1) {
+        printf(
+          "\t edge %d vertices %d, %d\n",
+          tgt+1,
+          EG_indexBodyTopo(object, nodes_tgt[0]),
+          EG_indexBodyTopo(object, nodes_tgt[1])
+        );
+      }
 
       int src_tgt_node_pairs[] = {-1,-1};
 
@@ -11373,10 +11406,12 @@ EG_compute_edge_sign_from_node_pairs
           EG_getTopology(nodes_tgt[i_node_tgt], &ref, &oclass, &ntype, xyz_tgt,
                         &ndum, &dum, &senses);
 
-          double xyz_src_periodize[3] = {xyz_src[0], xyz_src[1], xyz_src[2]};
-          xyz_src_periodize[0] = hm[0]*xyz_src[0] + hm[1]*xyz_src[1] + hm[ 2]*xyz_src[2] + hm[ 3]*1.;
-          xyz_src_periodize[1] = hm[4]*xyz_src[0] + hm[5]*xyz_src[1] + hm[ 6]*xyz_src[2] + hm[ 7]*1.;
-          xyz_src_periodize[2] = hm[8]*xyz_src[0] + hm[9]*xyz_src[1] + hm[10]*xyz_src[2] + hm[11]*1.;
+          double xyz_src_periodize[3];
+          _apply_homogeneous_matrix(
+            hm,
+            xyz_src,
+            xyz_src_periodize
+          );
 
           if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<PERIO_TOL*diag &&
               fabs(xyz_src_periodize[1]-xyz_tgt[1])<PERIO_TOL*diag &&
@@ -11389,9 +11424,43 @@ EG_compute_edge_sign_from_node_pairs
       assert(nmatch==2); // Both vertices must match for edge pair
 
       if (src_tgt_node_pairs[0]==0 && src_tgt_node_pairs[1]==1) {
+        if (debug_verbose==1) {
+          printf(
+            "\t makes vtx %d -> %d\n",
+            EG_indexBodyTopo(object, nodes_src[0]),
+            EG_indexBodyTopo(object, nodes_tgt[0])
+          );
+          printf(
+            "\t makes vtx %d -> %d\n",
+            EG_indexBodyTopo(object, nodes_src[1]),
+            EG_indexBodyTopo(object, nodes_tgt[1])
+          );
+        }
+        node_pairs[i_write_node++] = EG_indexBodyTopo(object, nodes_src[0]);
+        node_pairs[i_write_node++] = EG_indexBodyTopo(object, nodes_tgt[0]);
+        node_pairs[i_write_node++] = EG_indexBodyTopo(object, nodes_src[1]);
+        node_pairs[i_write_node++] = EG_indexBodyTopo(object, nodes_tgt[1]);
+
         pair_signs[i_write_sign++] = 1;
       }
       else if (src_tgt_node_pairs[0]==1 && src_tgt_node_pairs[1]==0) {
+        if (debug_verbose==1) {
+          printf(
+            "\t makes vtx %d -> %d\n",
+            EG_indexBodyTopo(object, nodes_src[0]),
+            EG_indexBodyTopo(object, nodes_tgt[1])
+          );
+          printf(
+            "\t makes vtx %d -> %d\n",
+            EG_indexBodyTopo(object, nodes_src[1]),
+            EG_indexBodyTopo(object, nodes_tgt[0])
+          );
+        }
+        node_pairs[i_write_node++] = EG_indexBodyTopo(object, nodes_src[0]);
+        node_pairs[i_write_node++] = EG_indexBodyTopo(object, nodes_tgt[1]);
+        node_pairs[i_write_node++] = EG_indexBodyTopo(object, nodes_src[1]);
+        node_pairs[i_write_node++] = EG_indexBodyTopo(object, nodes_tgt[0]);
+
         pair_signs[i_write_sign++] = -1;
       }
       else {
@@ -11399,9 +11468,13 @@ EG_compute_edge_sign_from_node_pairs
         exit(2);
       }
     }
+    node_pairs_idx[i_itrf+1] = i_write_node/2;
   }
 
-  *pair_signs_out     = pair_signs;
+  node_pairs = (int *) EG_reall(node_pairs, 2*node_pairs_idx[n_itrf] * sizeof(int));
+  *out_node_pairs_idx = node_pairs_idx;
+  *out_node_pairs     = node_pairs;
+  *out_pair_signs     = pair_signs;
 
   free(edges);
 
