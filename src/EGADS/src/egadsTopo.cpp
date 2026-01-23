@@ -12033,6 +12033,7 @@ EG_periodize_cad_2d
 void
 EG_periodize_cad_3d
 (
+  int           dim,
   egObject     *context,
   egObject     *model,
   int           n_pairs,
@@ -12064,6 +12065,7 @@ EG_periodize_cad_3d
     exit(EXIT_FAILURE);
   }
 
+  int pairs_idx[2] = {0, n_pairs};
 
   int       *edge_pairs_idx  = NULL;
   int       *edge_pairs      = NULL;
@@ -12072,41 +12074,62 @@ EG_periodize_cad_3d
   int       *node_pairs      = NULL;
   int       *face_edge_idx   = NULL;
   egObject **face_edge       = NULL;
-  EG_explicit_face_edge_connectivity(
-    bodies[0],
-    &face_edge_idx,
-    &face_edge
-  );
+  if (dim==2) {
+    EG_compute_edge_sign_and_node_pairs_from_edge_pairs(
+      bodies[0],
+      1,
+      pairs_idx,
+      pairs,
+      hmatrix,
+      &node_pairs_idx,
+      &node_pairs,
+      &edge_pairs_sign
+    );
+    edge_pairs_idx = pairs_idx;
+    edge_pairs     = pairs;
+  }
+  else if (dim==3) {
+    EG_explicit_face_edge_connectivity(
+      bodies[0],
+      &face_edge_idx,
+      &face_edge
+    );
 
-  int pairs_idx[2] = {0, n_pairs};
-  EG_compute_node_pairs_from_face_pairs(
-    bodies[0],
-    1,
-    pairs_idx,
-    pairs,
-    hmatrix,
-    face_edge_idx, //nnode count
-    &node_pairs_idx,
-    &node_pairs
-  );
+    EG_compute_node_pairs_from_face_pairs(
+      bodies[0],
+      1,
+      pairs_idx,
+      pairs,
+      hmatrix,
+      face_edge_idx, //nnode count
+      &node_pairs_idx,
+      &node_pairs
+    );
 
-  EG_compute_edge_pairs_from_node_pairs(
-    bodies[0],
-    1,
-    pairs_idx,
-    pairs,
-    hmatrix,
-    node_pairs_idx,
-    node_pairs,
-    face_edge_idx,
-    face_edge,
-    &edge_pairs_idx,
-    &edge_pairs,
-    &edge_pairs_sign
-  );
-  free(face_edge_idx);
-  free(face_edge);
+    EG_compute_edge_pairs_from_node_pairs(
+      bodies[0],
+      1,
+      pairs_idx,
+      pairs,
+      hmatrix,
+      node_pairs_idx,
+      node_pairs,
+      face_edge_idx,
+      face_edge,
+      &edge_pairs_idx,
+      &edge_pairs,
+      &edge_pairs_sign
+    );
+    free(face_edge_idx);
+    free(face_edge);
 
+  }
+
+  if (debug_verbose==1) {
+    _print_array_int(node_pairs     , 2*node_pairs_idx[1], "node_pairs     ::");
+    _print_array_int(edge_pairs     , 2*edge_pairs_idx[1], "edge_pairs      :: ");
+    _print_array_int(edge_pairs_sign,   edge_pairs_idx[1], "edge_pairs_sign :: ");
+  }
 
   patch_to_per_patch[0] = (int *) EG_alloc(nnode * sizeof(int));
   patch_to_per_patch[1] = (int *) EG_alloc(nedge * sizeof(int));
@@ -12131,7 +12154,9 @@ EG_periodize_cad_3d
     edge_matching_sign[i_edge_src-1] = edge_pairs_sign[i_pair];
     patch_to_per_patch[1][i_edge_src-1] = i_edge_tgt;
   }
-  free(edge_pairs_idx);
+  if (dim==3) {
+    free(edge_pairs_idx);
+  }
   free(edge_pairs);
   free(edge_pairs_sign);
 
@@ -12170,12 +12195,14 @@ EG_periodize_cad_3d
     }
 
     int matching_face = -1;
-    // TODO: improve search for big CADs ?
-    for (int i_pair=0; i_pair<n_pairs; ++i_pair) {
-      if (ind_face == pairs[2*i_pair]) {
-        matching_face = pairs[2*i_pair+1];
-        printf("Face %d match face %d\n", ind_face, matching_face);
-        break;
+    if (dim==3) {
+      // TODO: improve search for big CADs ?
+      for (int i_pair=0; i_pair<n_pairs; ++i_pair) {
+        if (ind_face == pairs[2*i_pair]) {
+          matching_face = pairs[2*i_pair+1];
+          printf("Face %d match face %d\n", ind_face, matching_face);
+          break;
+        }
       }
     }
 
@@ -12431,11 +12458,11 @@ EG_periodize_cad_3d
         );
 
         _print_array_int(new_loop_senses, loop_nedge, "\t\tnew_loop_senses::");
-        printf("fake_new_loop_geom = %p\n", fake_new_loop_geom);
-        printf("fake_new_loop_geom->oclass = %d\n", fake_new_loop_geom->oclass);
-        printf("loop_oclass = %d\n", loop_oclass);
-        printf("loop_mtype = %d\n", loop_mtype);
-        printf("loop_nedge = %d\n", loop_nedge);
+        // printf("fake_new_loop_geom = %p\n", fake_new_loop_geom);
+        // printf("fake_new_loop_geom->oclass = %d\n", fake_new_loop_geom->oclass);
+        // printf("loop_oclass = %d\n", loop_oclass);
+        // printf("loop_mtype = %d\n", loop_mtype);
+        // printf("loop_nedge = %d\n", loop_nedge);
         EG_makeTopology(context, fake_new_face_geom, loop_oclass, loop_mtype, NULL, loop_nedge, new_loop_edges, new_loop_senses, &new_loops[nnew_loop]);
 
         new_face_loops[iloop] = new_loops[nnew_loop];
@@ -12521,6 +12548,11 @@ EG_periodize_model
 {
   int stat = EGADS_SUCCESS;
 
+  if (dim!=2 && dim !=3) {
+    printf("Invalid dimension given: expected 2 or 3, got %d\n", dim);
+    exit(EXIT_FAILURE);
+  }
+
   /**
    * Create EGADS transform object from homogeneous mattix
    */
@@ -12547,37 +12579,19 @@ EG_periodize_model
   assert(nshell==1);
 
   egObject *_out_model = NULL;
-  if (dim==2) {
-    EG_periodize_cad_2d(
-      context,
-      model,
-      n_pairs,
-      pairs,
-      hmatrix,
-      eg_transform,
-      patch_to_per_patch,
-      &_out_model
-    );
-  }
-  else if (dim==3) {
-    EG_periodize_cad_3d(
-      context,
-      model,
-      n_pairs,
-      pairs,
-      hmatrix,
-      eg_transform,
-      patch_to_per_patch,
-      &_out_model
-    );
-  }
-  else {
-    printf("Invalid dimension given: expected 2 or 3, got %d\n", dim);
-    exit(EXIT_FAILURE);
-  }
+  EG_periodize_cad_3d( //rename func
+    dim,
+    context,
+    model,
+    n_pairs,
+    pairs,
+    hmatrix,
+    eg_transform,
+    patch_to_per_patch,
+    &_out_model
+  );
 
   *out_model = _out_model;
-
 
   return stat;
 }
