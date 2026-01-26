@@ -12044,7 +12044,7 @@ EG_periodize_cad_3d
   egObject    **out_per_model
 )
 {
-  int debug_verbose = 1;
+  int debug_verbose = 0;
   /**
    * Get model object
    */
@@ -12200,7 +12200,9 @@ EG_periodize_cad_3d
       for (int i_pair=0; i_pair<n_pairs; ++i_pair) {
         if (ind_face == pairs[2*i_pair]) {
           matching_face = pairs[2*i_pair+1];
-          printf("Face %d match face %d\n", ind_face, matching_face);
+          if (debug_verbose==1) {
+            printf("Face %d match face %d\n", ind_face, matching_face);
+          }
           break;
         }
       }
@@ -12282,7 +12284,7 @@ EG_periodize_cad_3d
             EG_getTopology(loop_edges[iedge], &edge_geom, &oclass, &mtype, edge_limits, &edge_nnode, &edge_nodes, &edge_senses);
             if (edge_nnode!=2) {
               printf("\t\t\t Skipping edge %d which is degenerated (%d vertices)\n", ind_edge, edge_nnode);
-
+              // TODO
               // exit(EXIT_FAILURE);
               continue;
             }
@@ -12418,7 +12420,9 @@ EG_periodize_cad_3d
 
           }
 
-          printf("\t\t\t --> Edge sense %d\n",new_loop_senses[iedge]);
+          if (debug_verbose==1) {
+            printf("\t\t\t --> Edge sense %d\n",new_loop_senses[iedge]);
+          }
 
 
 
@@ -12457,7 +12461,9 @@ EG_periodize_cad_3d
           &fake_new_loop_senses
         );
 
-        _print_array_int(new_loop_senses, loop_nedge, "\t\tnew_loop_senses::");
+        if (debug_verbose==1) {
+          _print_array_int(new_loop_senses, loop_nedge, "\t\tnew_loop_senses::");
+        }
         // printf("fake_new_loop_geom = %p\n", fake_new_loop_geom);
         // printf("fake_new_loop_geom->oclass = %d\n", fake_new_loop_geom->oclass);
         // printf("loop_oclass = %d\n", loop_oclass);
@@ -12489,7 +12495,6 @@ EG_periodize_cad_3d
   free(edge_matching_sign);
 
   // > Reassemble shell
-  printf("EG_makeTopology SHELL\n");
   EG_makeTopology(context, NULL, SHELL, OPEN, NULL, nface+nnew_face, per_shell_faces, NULL, &new_shell);
   free(per_shell_faces);
 
@@ -12504,13 +12509,13 @@ EG_periodize_cad_3d
 
   egObject *body_shells[1] = {new_shell};
   egObject *per_body = NULL;
-  printf("EG_makeTopology BODY\n");
   EG_makeTopology(context, body_geom, body_oclass, SHEETBODY, NULL, 1, body_shells, NULL, &per_body);
   // EG_makeTopology(context, body_geom, body_oclass, SHEETBODY, NULL, 1, body_shells, NULL, &per_body);
   egObject *per_model = NULL;
-  printf("EG_makeTopology MODEL\n");
   EG_makeTopology(context, NULL, MODEL, 0, NULL, 1, &per_body, NULL, &per_model);
-  EG_saveModel(per_model, "periodize_3d.step");
+  if (debug_verbose==1) {
+    EG_saveModel(per_model, "periodize_3d.step");
+  }
 
 
   if (debug_verbose==1) {
