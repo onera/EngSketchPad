@@ -11095,8 +11095,8 @@ EG_compute_node_matching
     }
   }
 
-  free(edges);
-  free(nodes);
+  EG_free(edges);
+  EG_free(nodes);
 
   *out_node_matching = node_matching;
 
@@ -11476,7 +11476,7 @@ EG_compute_edge_sign_and_node_pairs_from_edge_pairs
   *out_node_pairs     = node_pairs;
   *out_pair_signs     = pair_signs;
 
-  free(edges);
+  EG_free(edges);
 
   return EGADS_SUCCESS;
 }
@@ -11810,9 +11810,9 @@ EG_periodize_cad_3d
       &edge_pairs,
       &edge_pairs_sign
     );
-    free(face_edge_idx);
-    free(face_edge);
 
+    EG_free(face_edge_idx);
+    EG_free(face_edge);
   }
 
   if (debug_verbose==1) {
@@ -11832,8 +11832,8 @@ EG_periodize_cad_3d
     node_matching[i_node_src-1] = i_node_tgt;
     patch_to_per_patch[0][i_node_src-1] = i_node_tgt;
   }
-  free(node_pairs_idx);
-  free(node_pairs);
+  EG_free(node_pairs_idx);
+  EG_free(node_pairs);
 
   int *edge_matching      = (int *) calloc(nedge, sizeof(int));
   int *edge_matching_sign = (int *) calloc(nedge, sizeof(int));
@@ -12164,8 +12164,8 @@ EG_periodize_cad_3d
         new_face_loops[iloop] = new_loops[nnew_loop];
 
         nnew_loop++;
-        free(new_loop_senses);
-        free(new_loop_edges);
+        EG_free(new_loop_senses);
+        EG_free(new_loop_edges);
       }
 
       EG_makeTopology(context, fake_new_face_geom, face_oclass, face_mtype, NULL, face_nloop, new_face_loops, face_senses, &new_face);
@@ -12173,20 +12173,20 @@ EG_periodize_cad_3d
 
       patch_to_per_patch[2][ind_face-1] = nface+nnew_face+1;
       nnew_face++;
-      free(new_face_loops);
+      EG_free(new_face_loops);
     }
     else {
       patch_to_per_patch[2][ind_face-1] = matching_face;
     }
 
   }
-  free(node_matching);
-  free(edge_matching);
-  free(edge_matching_sign);
+  EG_free(node_matching);
+  EG_free(edge_matching);
+  EG_free(edge_matching_sign);
 
   // > Reassemble shell
   EG_makeTopology(context, NULL, SHELL, OPEN, NULL, nface+nnew_face, per_shell_faces, NULL, &new_shell);
-  free(per_shell_faces);
+  EG_free(per_shell_faces);
 
 
 
