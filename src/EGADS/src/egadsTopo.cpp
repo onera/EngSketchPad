@@ -11720,31 +11720,53 @@ EG_compute_edge_pairs_from_node_pairs
 }
 
 
-void
-EG_periodize_cad_3d
+int
+EG_periodize_model
 (
-  int           dim,
-  egObject     *context,
-  egObject     *model,
-  int           n_pairs,
-  int          *pairs, //interlaced
-  double       *hmatrix,
-  egObject     *eg_transform,
-  int          *patch_to_per_patch[3],
-  egObject    **out_per_model
+  int         dim,
+  egObject   *context,
+  egObject   *model,
+  int         n_pairs,
+  int        *pairs,
+  double     *hmatrix,
+  int        *patch_to_per_patch[3],
+  egObject  **out_model
 )
 {
   int debug_verbose = 0;
+  int stat = EGADS_SUCCESS;
+
+  if (dim!=2 && dim !=3) {
+    printf("Invalid dimension given: expected 2 or 3, got %d\n", dim);
+    exit(EXIT_FAILURE);
+  }
+
   /**
-   * Get model object
+   * Create EGADS transform object from homogeneous mattix
+   */
+  egObject *eg_transform;
+  stat = EG_makeTransform(context, hmatrix, &eg_transform);
+  if (stat != EGADS_SUCCESS) {
+    printf("Something went wrong while calling EG_makeTransform (stat = %d)", stat);
+    exit(EXIT_FAILURE);
+  }
+
+  /**
+   * Get model objects
    */
   egObject *model_geom;
   int       nbody  , nshell , nface , nloop , nedge , nnode;
   egObject **bodies,**shells,**faces,**loops,**edges,**nodes;
   int oclass, nego, mtype, *senses;
   int pflag;
-
   EG_getTopology(model, &model_geom, &oclass, &nego, NULL, &nbody, &bodies, &senses);
+
+  if (nbody>1) {
+    printf("Expected 1 body, got %d\n", nbody);
+    exit(EXIT_FAILURE);
+  }
+  assert(nshell==1);
+
   EG_getBodyTopos(bodies[0], NULL, NODE , &nnode , &nodes);
   EG_getBodyTopos(bodies[0], NULL, EDGE , &nedge , &edges);
   EG_getBodyTopos(bodies[0], NULL, LOOP , &nloop , &loops);
@@ -11755,6 +11777,11 @@ EG_periodize_cad_3d
     exit(EXIT_FAILURE);
   }
 
+
+  /**
+   * From CAD model and user leading dimension matching patch pairs
+   * deduce other dimensions matching patch pairs with relative orientation
+   */
   int pairs_idx[2] = {0, n_pairs};
 
   int       *edge_pairs_idx  = NULL;
@@ -11816,11 +11843,16 @@ EG_periodize_cad_3d
   }
 
   if (debug_verbose==1) {
-    _print_array_int(node_pairs     , 2*node_pairs_idx[1], "node_pairs     ::");
+    _print_array_int(node_pairs     , 2*node_pairs_idx[1], "node_pairs      :: ");
     _print_array_int(edge_pairs     , 2*edge_pairs_idx[1], "edge_pairs      :: ");
     _print_array_int(edge_pairs_sign,   edge_pairs_idx[1], "edge_pairs_sign :: ");
   }
 
+
+  /**
+   * Rewrite matching patch pairs with relative orientation in other frame
+   * while building work array
+   */
   patch_to_per_patch[0] = (int *) EG_alloc(nnode * sizeof(int));
   patch_to_per_patch[1] = (int *) EG_alloc(nedge * sizeof(int));
   patch_to_per_patch[2] = (int *) EG_alloc(nface * sizeof(int));
@@ -11829,8 +11861,8 @@ EG_periodize_cad_3d
   for (int i_pair=0; i_pair<node_pairs_idx[1]; ++i_pair) {
     int i_node_src = node_pairs[2*i_pair  ];
     int i_node_tgt = node_pairs[2*i_pair+1];
-    node_matching[i_node_src-1] = i_node_tgt;
     patch_to_per_patch[0][i_node_src-1] = i_node_tgt;
+    node_matching        [i_node_src-1] = i_node_tgt;
   }
   EG_free(node_pairs_idx);
   EG_free(node_pairs);
@@ -11840,22 +11872,33 @@ EG_periodize_cad_3d
   for (int i_pair=0; i_pair<edge_pairs_idx[1]; ++i_pair) {
     int i_edge_src = edge_pairs[2*i_pair  ];
     int i_edge_tgt = edge_pairs[2*i_pair+1];
-    edge_matching     [i_edge_src-1] = i_edge_tgt;
-    edge_matching_sign[i_edge_src-1] = edge_pairs_sign[i_pair];
     patch_to_per_patch[1][i_edge_src-1] = i_edge_tgt;
+    edge_matching        [i_edge_src-1] = i_edge_tgt;
+    edge_matching_sign   [i_edge_src-1] = edge_pairs_sign[i_pair];
   }
-  if (dim==3) {
-    free(edge_pairs_idx);
-  }
-  free(edge_pairs);
-  free(edge_pairs_sign);
 
-  int nnew_node = 0;
-  int nnew_edge = 0;
-  int nnew_loop = 0;
-  int nnew_face = 0;
-  egObject  *new_shell;
-  egObject  *new_face;
+  if (dim==3) {
+    for (int i_face=0; i_face<nface; ++i_face) {
+      patch_to_per_patch[2][i_face] = -1;
+    }
+    for (int i_pair=0; i_pair<n_pairs; ++i_pair) {
+      int i_face_src = pairs[2*i_pair  ];
+      int i_face_tgt = pairs[2*i_pair+1];
+      patch_to_per_patch[2][i_face_src-1] = i_face_tgt;
+    }
+
+    EG_free(edge_pairs_idx);
+    EG_free(edge_pairs);
+  }
+  else {
+    patch_to_per_patch[2][0] = -1;
+  }
+  EG_free(edge_pairs_sign);
+
+
+
+  int nnew_node = 0, nnew_edge = 0, nnew_loop = 0, nnew_face = 0;
+  egObject  *new_shell, *new_face;
   egObject **new_loops = (egObject **) EG_alloc(nloop * sizeof(egObject *));
   egObject **new_edges = (egObject **) EG_alloc(nedge * sizeof(egObject *));
   egObject **new_nodes = (egObject **) EG_alloc(nnode * sizeof(egObject *));
@@ -11919,7 +11962,6 @@ EG_periodize_cad_3d
         &fake_new_face_nodes,
         &fake_new_face_senses
       );
-
 
 
       for (int iloop=0; iloop<face_nloop; ++iloop) {
@@ -12054,13 +12096,13 @@ EG_periodize_cad_3d
             EG_copyObject(loop_edges[iedge], eg_transform, &fake_new_edge);
             EG_getTopology(
               fake_new_edge,
-            &fake_new_edge_geom,
-            &oclass,
-            &mtype,
+              &fake_new_edge_geom,
+              &oclass,
+              &mtype,
               fake_new_edge_limit,
-            &fake_new_edge_nnode,
-            &fake_new_edge_nodes,
-            &fake_new_edge_senses
+              &fake_new_edge_nnode,
+              &fake_new_edge_nodes,
+              &fake_new_edge_senses
             );
             if (edge_nnode!=2) {
               printf("degen edge oclass = %d\n", oclass);
@@ -12214,79 +12256,17 @@ EG_periodize_cad_3d
     _print_array_int(patch_to_per_patch[2], nface, "post patch_to_per_patch[FACE] :: ");
   }
 
-  free(nodes);
-  free(edges);
-  free(loops);
-  free(faces);
-  free(shells);
+  EG_free(nodes);
+  EG_free(edges);
+  EG_free(loops);
+  EG_free(faces);
+  EG_free(shells);
 
-  free(new_loops);
-  free(new_edges);
-  free(new_nodes);
+  EG_free(new_loops);
+  EG_free(new_edges);
+  EG_free(new_nodes);
 
-  *out_per_model = per_model;
-}
-
-
-int
-EG_periodize_model
-(
-  int         dim,
-  egObject   *context,
-  egObject   *model,
-  int         n_pairs,
-  int        *pairs,
-  double     *hmatrix,
-  int        *patch_to_per_patch[3],
-  egObject  **out_model
-)
-{
-  int stat = EGADS_SUCCESS;
-
-  if (dim!=2 && dim !=3) {
-    printf("Invalid dimension given: expected 2 or 3, got %d\n", dim);
-    exit(EXIT_FAILURE);
-  }
-
-  /**
-   * Create EGADS transform object from homogeneous mattix
-   */
-  egObject *eg_transform;
-  stat = EG_makeTransform(context, hmatrix, &eg_transform);
-  if (stat != EGADS_SUCCESS) {
-    printf("Something went wrong while calling EG_makeTransform (stat = %d)", stat);
-    exit(EXIT_FAILURE);
-  }
-
-  /**
-   * Get model object
-   */
-  egObject *model_geom;
-  int       nbody;
-  egObject **bodies;
-  int oclass, nego, *senses;
-  EG_getTopology(model, &model_geom, &oclass, &nego, NULL, &nbody, &bodies, &senses);
-
-  if (nbody>1) {
-    printf("Expected 1 body, got %d\n", nbody);
-    exit(EXIT_FAILURE);
-  }
-  assert(nshell==1);
-
-  egObject *_out_model = NULL;
-  EG_periodize_cad_3d( //rename func
-    dim,
-    context,
-    model,
-    n_pairs,
-    pairs,
-    hmatrix,
-    eg_transform,
-    patch_to_per_patch,
-    &_out_model
-  );
-
-  *out_model = _out_model;
+  *out_model = per_model;
 
   return stat;
 }
