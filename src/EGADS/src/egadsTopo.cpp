@@ -11927,19 +11927,7 @@ EG_periodize_model
       printf("iface = %d : Face %d :: nloop = %d\n", iface, ind_face, face_nloop);
     }
 
-    int matching_face = -1;
-    if (dim==3) {
-      // TODO: improve search for big CADs ?
-      for (int i_pair=0; i_pair<n_pairs; ++i_pair) {
-        if (ind_face == pairs[2*i_pair]) {
-          matching_face = pairs[2*i_pair+1];
-          if (debug_verbose==1) {
-            printf("Face %d match face %d\n", ind_face, matching_face);
-          }
-          break;
-        }
-      }
-    }
+    int matching_face = patch_to_per_patch[2][ind_face-1];
 
     if (matching_face == -1) { // Periodize faces that are not in periodic interface
 
