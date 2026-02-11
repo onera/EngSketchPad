@@ -12273,7 +12273,7 @@ EG_periodize_model
   egObject  **out_model
 )
 {
-  int debug_verbose = 1;
+  int debug_verbose = 0;
   int stat = EGADS_SUCCESS;
 
   if (dim!=2 && dim !=3) {
@@ -12682,7 +12682,8 @@ EG_periodize_model
     }
 
     int iface_geom = loop_face_geom[ind_loop-1];
-    EG_makeTopology(context, new_faces_geom[iface_geom], oclass, mtype, loop_limits, loop_nedge, new_loop_edges, loop_senses, &new_loops[nnew_loop]);
+    egObject *new_loop_face_geom = (loop_geom == NULL) ? NULL : new_faces_geom[iface_geom];
+    EG_makeTopology(context, new_loop_face_geom, oclass, mtype, loop_limits, loop_nedge, new_loop_edges, loop_senses, &new_loops[nnew_loop]);
     nnew_loop++;
 
     EG_free(new_loop_edges);
@@ -12747,7 +12748,8 @@ EG_periodize_model
       }
 
       int iface_geom = loop_face_geom[nloop+ind_loop-1];
-      EG_makeTopology(context, new_faces_geom[iface_geom], oclass, mtype, loop_limits, loop_nedge, new_loop_edges, loop_senses, &new_loops[nnew_loop]);
+      egObject *new_loop_face_geom = (loop_geom == NULL) ? NULL : new_faces_geom[iface_geom];
+      EG_makeTopology(context, new_loop_face_geom, oclass, mtype, loop_limits, loop_nedge, new_loop_edges, loop_senses, &new_loops[nnew_loop]);
       loop_to_per_loop[ind_loop-1] = new_loops[nnew_loop];
       nnew_loop++;
 
