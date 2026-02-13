@@ -937,10 +937,12 @@ EG_deleteObject(egObject *object)
         if (cntx->mutex != NULL) EMP_LockRelease(cntx->mutex);
         return cnt;
       }
-      for (i = nbody-1; i >= 0; i--)
+      for (i = nbody-1; i >= 0; i--) {
         if ((bodies[i]->oclass == TESSELLATION) ||
-            (bodies[i]->oclass == EBODY))
+            (bodies[i]->oclass == EBODY)) {
           EG_dereferenceObject(bodies[i], object);
+        }
+      }
     }
 
     stat = EG_dereferenceObject(object, context);

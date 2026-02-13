@@ -394,6 +394,482 @@ _unexisting_pair
 }
 
 
+static
+void
+_duplicate_and_periodize_nodes
+(
+  egObject   *context,
+  egObject   *model,
+  int        *node_matching,
+  double     *hmatrix,
+  int        *out_nnew_node,
+  egObject ***out_nodes,
+  egObject ***out_node_to_per_node
+)
+{
+  /**
+   * Get model objects
+   */
+  egObject *model_geom;
+  int       nbody, nnode;
+  egObject **bodies,**nodes;
+  int oclass, nego, mtype, *senses;
+  EG_getTopology(model, &model_geom, &oclass, &nego, NULL, &nbody, &bodies, &senses);
+  EG_getBodyTopos(bodies[0], NULL, NODE , &nnode , &nodes);
+
+  int        nnew_node        = 0;
+  egObject **new_nodes        = (egObject **) EG_alloc(2*nnode * sizeof(egObject *));
+  egObject **node_to_per_node = (egObject **) EG_alloc(  nnode * sizeof(egObject *));
+
+  for (int inode=0; inode<nnode; ++inode) {
+    int ndum;
+    egObject **dum;
+    double xyz[3];
+    egObject  *node_geom;
+    EG_getTopology(nodes[inode], &node_geom, &oclass, &mtype, xyz, &ndum, &dum, &senses);
+
+    EG_makeTopology(context, NULL, NODE, 0, xyz, 0, NULL, NULL, &new_nodes[nnew_node]);
+    nnew_node++;
+  }
+
+  for (int inode=0; inode<nnode; ++inode) {
+    int ndum;
+    egObject **dum;
+    double xyz[3];
+    egObject  *node_geom;
+
+    EG_getTopology(nodes[inode], &node_geom, &oclass, &mtype, xyz, &ndum, &dum, &senses);
+    int ind_node = EG_indexBodyTopo(bodies[0], nodes[inode]);
+
+    if (node_matching[ind_node-1]==0) { // not a periodic node, create new one applying transfo
+      double new_xyz[3] = {0.,0.,0.};
+      _apply_homogeneous_matrix(
+        hmatrix,
+        xyz,
+        new_xyz
+      );
+
+      EG_makeTopology(context, NULL, NODE, 0, new_xyz, 0, NULL, NULL, &new_nodes[nnew_node]);
+      node_to_per_node[ind_node-1] = new_nodes[nnew_node];
+      nnew_node++;
+    }
+    else {
+      int ind_match_node = node_matching[ind_node-1];
+
+      node_to_per_node[ind_node-1] = new_nodes[ind_match_node-1];
+    }
+  }
+
+  EG_free(nodes);
+
+  *out_nnew_node        = nnew_node;
+  *out_nodes            = new_nodes;
+  *out_node_to_per_node = node_to_per_node;
+}
+
+
+static
+void
+_duplicate_and_periodize_edges
+(
+  egObject   *context,
+  egObject   *model,
+  int        *edge_matching,
+  egObject   *eg_transform,
+  egObject  **new_nodes,
+  egObject  **node_to_per_node,
+  int        *out_nnew_edge,
+  egObject ***out_new_edges,
+  egObject ***out_new_edges_geom,
+  egObject ***out_edge_to_per_edge
+)
+{
+  /**
+   * Get model objects
+   */
+  egObject  *model_geom;
+  int        nbody ,  nface,  nedge;
+  egObject **bodies,**faces,**edges;
+  int        oclass, nego, mtype, *senses;
+  EG_getTopology(model, &model_geom, &oclass, &nego, NULL, &nbody, &bodies, &senses);
+  EG_getBodyTopos(bodies[0], NULL, EDGE, &nedge, &edges);
+  EG_getBodyTopos(bodies[0], NULL, FACE, &nface, &faces);
+
+  int        nnew_edge        = 0;
+  egObject **new_edges        = (egObject **) EG_alloc(2 *         nedge * sizeof(egObject *));
+  egObject **new_edges_geom   = (egObject **) EG_alloc(2 *         nedge * sizeof(egObject *));
+  egObject **edge_to_per_edge = (egObject **) EG_alloc(            nedge * sizeof(egObject *));
+
+  for (int iedge=0; iedge<nedge; ++iedge) {
+
+    egObject  *edge_geom;
+    int       *edge_senses;
+    int        edge_nnode;
+    egObject **edge_nodes;
+    double     edge_limits[2];
+    EG_getTopology(edges[iedge], &edge_geom, &oclass, &mtype, edge_limits, &edge_nnode, &edge_nodes, &edge_senses);
+
+    // TODO: generalize to degen edges
+    int ind_node0 = EG_indexBodyTopo(bodies[0], edge_nodes[0]);
+    int ind_node1 = EG_indexBodyTopo(bodies[0], edge_nodes[1]);
+
+    // > Copy edge geometry object with no transformation
+    egObject *new_edge_geom = NULL;
+    EG_copyObject(edge_geom, NULL, &new_edge_geom);
+
+    egObject* new_edge_nodes[2] = {new_nodes[ind_node0-1], new_nodes[ind_node1-1]};
+
+    EG_makeTopology(context, new_edge_geom, oclass, mtype, edge_limits, edge_nnode, new_edge_nodes, edge_senses, &new_edges[nnew_edge]);
+    new_edges_geom[nnew_edge] = new_edge_geom;
+    nnew_edge++;
+  }
+
+  for (int iedge=0; iedge<nedge; ++iedge) {
+
+    egObject  *edge_geom;
+    int       *edge_senses;
+    int        edge_nnode;
+    egObject **edge_nodes;
+    double     edge_limits[2];
+    EG_getTopology(edges[iedge], &edge_geom, &oclass, &mtype, edge_limits, &edge_nnode, &edge_nodes, &edge_senses);
+    int ind_edge = EG_indexBodyTopo(bodies[0], edges[iedge]);
+
+    if (edge_matching[ind_edge-1]==0) { // not a periodic edge, create new one applying transfo
+      // TODO: generalize to degen edges
+      int ind_node0 = EG_indexBodyTopo(bodies[0], edge_nodes[0]);
+      int ind_node1 = EG_indexBodyTopo(bodies[0], edge_nodes[1]);
+
+      // > Copy edge geometry object with transformation
+      egObject *new_edge_geom = NULL;
+      EG_copyObject(edge_geom, eg_transform, &new_edge_geom);
+
+      egObject* new_edge_nodes[2] = {node_to_per_node[ind_node0-1], node_to_per_node[ind_node1-1]};
+      EG_makeTopology(context, new_edge_geom, oclass, mtype, edge_limits, edge_nnode, new_edge_nodes, edge_senses, &new_edges[nnew_edge]);
+      new_edges_geom[nnew_edge] = new_edge_geom;
+      edge_to_per_edge[ind_edge-1] = new_edges[nnew_edge];
+      nnew_edge++;
+    }
+    else {
+      int ind_match_edge = edge_matching[ind_edge-1];
+
+      edge_to_per_edge[ind_edge-1] = new_edges[ind_match_edge-1];
+    }
+  }
+
+  EG_free(edges);
+  EG_free(faces);
+
+  *out_nnew_edge        = nnew_edge;
+  *out_new_edges        = new_edges;
+  *out_new_edges_geom   = new_edges_geom;
+  *out_edge_to_per_edge = edge_to_per_edge;
+}
+
+
+static
+void
+_duplicate_and_periodize_faces_and_loops
+(
+  egObject   *context,
+  egObject   *model,
+  int        *edge_matching,
+  int        *edge_matching_sign,
+  int        *face_matching,
+  egObject   *eg_transform,
+  egObject  **new_edges,
+  egObject  **edge_to_per_edge,
+  int        *out_nnew_edge_curve,
+  egObject ***out_new_edge_curves,
+  int        *out_nnew_loop,
+  egObject ***out_new_loops,
+  int        *out_nnew_face,
+  egObject ***out_new_faces,
+  egObject ***out_new_faces_geom,
+  egObject ***out_face_to_per_face
+)
+{
+  /**
+   * Get model objects
+   */
+  egObject *model_geom;
+  int       nbody  , nface , nloop , nedge;
+  egObject **bodies,**faces,**loops,**edges;
+  int oclass, nego, mtype, *senses;
+  EG_getTopology(model, &model_geom, &oclass, &nego, NULL, &nbody, &bodies, &senses);
+
+  EG_getBodyTopos(bodies[0], NULL, EDGE , &nedge , &edges);
+  EG_getBodyTopos(bodies[0], NULL, LOOP , &nloop , &loops);
+  EG_getBodyTopos(bodies[0], NULL, FACE , &nface , &faces);
+  EG_free(edges);
+
+  int        nnew_face_geom  = 0;
+  int       *loop_face       = (int       *) EG_alloc(  nloop * sizeof(int       ));
+  int       *loop_face_geom  = (int       *) EG_alloc(2*nloop * sizeof(int       ));
+  egObject **new_faces_geom  = (egObject **) EG_alloc(2*nface * sizeof(egObject *));
+
+  for (int iface=0; iface<nface; ++iface) {
+
+    egObject  *face_geom;
+    int       *face_senses;
+    int        face_nloop;
+    egObject **face_loops;
+    double     face_limits[4];
+    EG_getTopology(faces[iface], &face_geom, &oclass, &mtype, face_limits, &face_nloop, &face_loops, &face_senses);
+    int ind_face = EG_indexBodyTopo(bodies[0], faces[iface]);
+
+    // > Copy face geometry object with no transformation
+    egObject *new_face_geom = NULL;
+    EG_copyObject(face_geom, NULL, &new_face_geom);
+
+    for (int iloop=0; iloop<face_nloop; ++iloop) {
+      int ind_loop = EG_indexBodyTopo(bodies[0], face_loops[iloop]);
+
+      loop_face     [ind_loop-1] = ind_face;
+      loop_face_geom[ind_loop-1] = nnew_face_geom;
+    }
+
+    new_faces_geom[nnew_face_geom++] = new_face_geom;
+  }
+
+  for (int iface=0; iface<nface; ++iface) {
+
+    egObject  *face_geom;
+    int       *face_senses;
+    int        face_nloop;
+    egObject **face_loops;
+    double     face_limits[4];
+    EG_getTopology(faces[iface], &face_geom, &oclass, &mtype, face_limits, &face_nloop, &face_loops, &face_senses);
+    int ind_face = EG_indexBodyTopo(bodies[0], faces[iface]);
+
+    if (face_matching[ind_face-1]==0) { // not a periodic face, create new one applying transfo
+
+      // > Copy face geometry object with transformation
+      egObject *new_face_geom = NULL;
+      EG_copyObject(face_geom, eg_transform, &new_face_geom);
+
+      for (int iloop=0; iloop<face_nloop; ++iloop) {
+        int ind_loop = EG_indexBodyTopo(bodies[0], face_loops[iloop]);
+        loop_face_geom[nloop+ind_loop-1] = nnew_face_geom;
+      }
+
+      new_faces_geom[nnew_face_geom++] = new_face_geom;
+    }
+  }
+
+
+  /**
+   * Recreate all loops and then their duplicate
+   */
+  int        nnew_edge_curve  = 0;
+  egObject **new_edge_curves  = (egObject **) EG_alloc(2 * nface * nedge * sizeof(egObject *));
+  int        nnew_loop        = 0;
+  egObject **new_loops        = (egObject **) EG_alloc(2*nloop * sizeof(egObject *));
+  egObject **loop_to_per_loop = (egObject **) EG_alloc(  nloop * sizeof(egObject *));
+
+  for (int iloop=0; iloop<nloop; ++iloop) {
+
+    egObject  *loop_geom;
+    int       *loop_senses;
+    int        loop_nedge;
+    egObject **loop_edges;
+    double     loop_limits[2];
+    EG_getTopology(loops[iloop], &loop_geom, &oclass, &mtype, loop_limits, &loop_nedge, &loop_edges, &loop_senses);
+    int ind_loop = EG_indexBodyTopo(bodies[0], loops[iloop]);
+
+    egObject **new_loop_edges = (egObject **) EG_alloc(2 * loop_nedge * sizeof(egObject *));
+    for (int iedge=0; iedge<loop_nedge; ++iedge) {
+      int ind_edge = EG_indexBodyTopo(bodies[0], loop_edges[iedge]);
+      new_loop_edges[iedge] = new_edges[ind_edge-1];
+
+      if (loop_geom != NULL && loop_geom->mtype!=PLANE) {
+
+        int       edge_pcurve_oclass;
+        int       edge_pcurve_mtype;
+        int      *edge_pcurve_ivec;
+        double   *edge_pcurve_rvec;
+        egObject *edge_curve_unknown;
+        EG_getGeometry(
+          loop_edges[loop_nedge+iedge],
+          &edge_pcurve_oclass,
+          &edge_pcurve_mtype,
+          &edge_curve_unknown,
+          &edge_pcurve_ivec,
+          &edge_pcurve_rvec
+        );
+
+        EG_makeGeometry(
+          context,
+          PCURVE,
+          edge_pcurve_mtype,
+          loop_geom,
+          edge_pcurve_ivec,
+          edge_pcurve_rvec,
+          &new_loop_edges[loop_nedge+iedge]
+        );
+
+        new_edge_curves[nnew_edge_curve++] = new_loop_edges[loop_nedge+iedge];
+
+        free(edge_pcurve_ivec);
+        free(edge_pcurve_rvec);
+      }
+    }
+
+    int iface_geom = loop_face_geom[ind_loop-1];
+    egObject *new_loop_face_geom = (loop_geom == NULL) ? NULL : new_faces_geom[iface_geom];
+    EG_makeTopology(context, new_loop_face_geom, oclass, mtype, loop_limits, loop_nedge, new_loop_edges, loop_senses, &new_loops[nnew_loop]);
+    nnew_loop++;
+
+    EG_free(new_loop_edges);
+  }
+
+  for (int iloop=0; iloop<nloop; ++iloop) {
+
+    egObject  *loop_geom;
+    int       *loop_senses;
+    int        loop_nedge;
+    egObject **loop_edges;
+    double     loop_limits[2];
+    EG_getTopology(loops[iloop], &loop_geom, &oclass, &mtype, loop_limits, &loop_nedge, &loop_edges, &loop_senses);
+    int ind_loop = EG_indexBodyTopo(bodies[0], loops[iloop]);
+
+    int ind_face = loop_face[ind_loop-1];
+    if (face_matching[ind_face-1]==0) { // loop not on a periodic face, create new loop applying transfo
+
+      egObject **new_loop_edges = (egObject **) EG_alloc(2 * loop_nedge * sizeof(egObject *));
+      for (int iedge=0; iedge<loop_nedge; ++iedge) {
+        int ind_edge = EG_indexBodyTopo(bodies[0], loop_edges[iedge]);
+
+        if (edge_matching[ind_edge-1]==0) { // a periodic edge have been created
+          new_loop_edges[iedge] = edge_to_per_edge[ind_edge-1];
+        }
+        else {
+          int ind_match_edge = edge_matching[ind_edge-1];
+          new_loop_edges[iedge] = new_edges[ind_match_edge-1];
+          loop_senses[iedge] *= edge_matching_sign[ind_edge-1];
+        }
+
+        if (loop_geom != NULL && loop_geom->mtype!=PLANE) {
+
+          int       edge_pcurve_oclass;
+          int       edge_pcurve_mtype;
+          int      *edge_pcurve_ivec;
+          double   *edge_pcurve_rvec;
+          egObject *edge_curve_unknown;
+          EG_getGeometry(
+            loop_edges[loop_nedge+iedge],
+            &edge_pcurve_oclass,
+            &edge_pcurve_mtype,
+            &edge_curve_unknown,
+            &edge_pcurve_ivec,
+            &edge_pcurve_rvec
+          );
+
+          EG_makeGeometry(
+            context,
+            PCURVE,
+            edge_pcurve_mtype,
+            loop_geom,
+            edge_pcurve_ivec,
+            edge_pcurve_rvec,
+            &new_loop_edges[loop_nedge+iedge]
+          );
+
+          new_edge_curves[nnew_edge_curve++] = new_loop_edges[loop_nedge+iedge];
+
+          free(edge_pcurve_ivec);
+          free(edge_pcurve_rvec);
+        }
+      }
+
+      int iface_geom = loop_face_geom[nloop+ind_loop-1];
+      egObject *new_loop_face_geom = (loop_geom == NULL) ? NULL : new_faces_geom[iface_geom];
+      EG_makeTopology(context, new_loop_face_geom, oclass, mtype, loop_limits, loop_nedge, new_loop_edges, loop_senses, &new_loops[nnew_loop]);
+      loop_to_per_loop[ind_loop-1] = new_loops[nnew_loop];
+      nnew_loop++;
+
+      EG_free(new_loop_edges);
+    }
+
+  }
+  EG_free(loops);
+  EG_free(loop_face);
+  EG_free(loop_face_geom);
+
+
+  /**
+   * Recreate all faces and then their duplicate
+   */
+  int        nnew_face        = 0;
+  egObject **new_faces        = (egObject **) EG_alloc(2*nface * sizeof(egObject *));
+  egObject **face_to_per_face = (egObject **) EG_alloc(  nface * sizeof(egObject *));
+
+  for (int iface=0; iface<nface; ++iface) {
+
+    egObject  *face_geom;
+    int       *face_senses;
+    int        face_nloop;
+    egObject **face_loops;
+    double     face_limits[4];
+    EG_getTopology(faces[iface], &face_geom, &oclass, &mtype, face_limits, &face_nloop, &face_loops, &face_senses);
+
+    egObject **new_face_loops = (egObject **) EG_alloc(face_nloop * sizeof(egObject *));
+    for (int iloop=0; iloop<face_nloop; ++iloop) {
+      int ind_loop = EG_indexBodyTopo(bodies[0], face_loops[iloop]);
+      new_face_loops[iloop] = new_loops[ind_loop-1];
+    }
+
+    EG_makeTopology(context, new_faces_geom[nnew_face], oclass, mtype, face_limits, face_nloop, new_face_loops, face_senses, &new_faces[nnew_face]);
+    nnew_face++;
+
+    EG_free(new_face_loops);
+  }
+
+  for (int iface=0; iface<nface; ++iface) {
+
+    egObject  *face_geom;
+    int       *face_senses;
+    int        face_nloop;
+    egObject **face_loops;
+    double     face_limits[4];
+    EG_getTopology(faces[iface], &face_geom, &oclass, &mtype, face_limits, &face_nloop, &face_loops, &face_senses);
+    int ind_face = EG_indexBodyTopo(bodies[0], faces[iface]);
+
+    if (face_matching[ind_face-1]==0) { // not a periodic face, create new one applying transfo
+
+      egObject **new_face_loops = (egObject **) EG_alloc(face_nloop * sizeof(egObject *));
+      for (int iloop=0; iloop<face_nloop; ++iloop) {
+        int ind_loop = EG_indexBodyTopo(bodies[0], face_loops[iloop]);
+        new_face_loops[iloop] = loop_to_per_loop[ind_loop-1];
+      }
+
+      EG_makeTopology(context, new_faces_geom[nnew_face], oclass, mtype, face_limits, face_nloop, new_face_loops, face_senses, &new_faces[nnew_face]);
+      face_to_per_face[ind_face-1] = new_faces[nnew_face];
+      nnew_face++;
+
+      EG_free(new_face_loops);
+    }
+    else {
+      int ind_match_face = face_matching[ind_face-1];
+
+      face_to_per_face[ind_face-1] = new_faces[ind_match_face-1];
+    }
+  }
+  EG_free(faces);
+  EG_free(loop_to_per_loop);
+
+
+  *out_nnew_edge_curve  = nnew_edge_curve;
+  *out_new_edge_curves  = new_edge_curves;
+  *out_nnew_loop        = nnew_loop;
+  *out_new_loops        = new_loops;
+  *out_nnew_face        = nnew_face;
+  *out_new_faces        = new_faces;
+  *out_new_faces_geom   = new_faces_geom;
+  *out_face_to_per_face = face_to_per_face;
+
+}
+
+
 static void
 EG_cleanMaps(egadsMap *map)
 {
@@ -506,8 +982,9 @@ EG_destroyTopology(egObject *topo)
   if (topo->oclass == MODEL) {
     egadsModel *mshape = (egadsModel *) topo->blind;
     if (mshape->bodies != NULL) {
-      for (int i = 0; i < mshape->nbody; i++)
+      for (int i = 0; i < mshape->nbody; i++) {
         EG_dereferenceObject(mshape->bodies[i], topo);
+      }
       delete [] mshape->bodies;
     }
     mshape->shape.Nullify();
@@ -11757,7 +12234,7 @@ EG_periodize_model
   egObject *model_geom;
   int       nbody  , nface , nloop , nedge , nnode;
   egObject **bodies,**faces,**loops,**edges,**nodes;
-  int oclass, nego, mtype, *senses;
+  int oclass, nego, *senses;
   EG_getTopology(model, &model_geom, &oclass, &nego, NULL, &nbody, &bodies, &senses);
 
   if (nbody>1) {
@@ -11774,6 +12251,10 @@ EG_periodize_model
     printf("CAD with multiple bodies aren't managed yet");
     exit(EXIT_FAILURE);
   }
+  EG_free(nodes);
+  EG_free(edges);
+  EG_free(loops);
+  EG_free(faces);
 
 
   /**
@@ -11869,11 +12350,11 @@ EG_periodize_model
   EG_free(node_pairs);
 
   int *edge_matching      = (int *) calloc(nedge, sizeof(int));
-  int *edge_matching_sign = (int *) calloc(nedge, sizeof(int));
+  int *edge_matching_sign = (int *) calloc(nedge, sizeof(int)); /// DEL
   for (int i_pair=0; i_pair<edge_pairs_idx[1]; ++i_pair) {
     int i_edge_src = edge_pairs[2*i_pair  ];
     int i_edge_tgt = edge_pairs[2*i_pair+1];
-    patch_to_per_patch[1][i_edge_src-1] = i_edge_tgt;
+    patch_to_per_patch[1][i_edge_src-1] = i_edge_tgt; //MERGE
     edge_matching        [i_edge_src-1] = i_edge_tgt;
     edge_matching_sign   [i_edge_src-1] = edge_pairs_sign[i_pair];
   }
@@ -11901,130 +12382,40 @@ EG_periodize_model
    * Recreate all nodes and then their duplicates
    */
   int        nnew_node        = 0;
-  egObject **new_nodes        = (egObject **) EG_alloc(2*nnode * sizeof(egObject *));
-  egObject **node_to_per_node = (egObject **) EG_alloc(  nnode * sizeof(egObject *));
-
-  for (int inode=0; inode<nnode; ++inode) {
-    int ndum;
-    egObject **dum;
-    double xyz[3];
-    egObject  *node_geom;
-    EG_getTopology(nodes[inode], &node_geom, &oclass, &mtype, xyz, &ndum, &dum, &senses);
-
-    EG_makeTopology(context, NULL, NODE, 0, xyz, 0, NULL, NULL, &new_nodes[nnew_node]);
-    nnew_node++;
-  }
-
-  for (int inode=0; inode<nnode; ++inode) {
-    int ndum;
-    egObject **dum;
-    double xyz[3];
-    egObject  *node_geom;
-
-    EG_getTopology(nodes[inode], &node_geom, &oclass, &mtype, xyz, &ndum, &dum, &senses);
-    int ind_node = EG_indexBodyTopo(bodies[0], nodes[inode]);
-
-    if (debug_verbose==1) {
-      printf("\tinode = %d :: ind_node = %d\n", inode, ind_node);
-    }
-
-    if (node_matching[ind_node-1]==0) { // not a periodic node, create new one applying transfo
-      if (debug_verbose==1) {
-        printf("\t --> Create new node (as %d)\n", nnew_node+1);
-      }
-      double new_xyz[3] = {0.,0.,0.};
-      _apply_homogeneous_matrix(
-        hmatrix,
-        xyz,
-        new_xyz
-      );
-
-      EG_makeTopology(context, NULL, NODE, 0, new_xyz, 0, NULL, NULL, &new_nodes[nnew_node]);
-      node_to_per_node[ind_node-1] = new_nodes[nnew_node];
-      nnew_node++;
-    }
-    else {
-      int ind_match_node = node_matching[ind_node-1];
-      if (debug_verbose==1) {
-        printf("\t --> Get node %d\n", ind_match_node);
-      }
-
-      node_to_per_node[ind_node-1] = new_nodes[ind_match_node-1];
-    }
-  }
+  egObject **new_nodes        = NULL;
+  egObject **node_to_per_node = NULL;
+  _duplicate_and_periodize_nodes(
+    context,
+    model,
+    node_matching,
+    hmatrix,
+    &nnew_node,
+    &new_nodes,
+    &node_to_per_node
+  );
   EG_free(node_matching);
-  EG_free(nodes);
 
 
   /**
    * Recreate all edges and then their duplicates
    */
   int        nnew_edge        = 0;
-  int        nnew_edge_curve  = 0;
-  egObject **new_edges        = (egObject **) EG_alloc(2 *         nedge * sizeof(egObject *));
-  egObject **new_edges_curve  = (egObject **) EG_alloc(2 * nface * nedge * sizeof(egObject *));
-  egObject **new_edges_geom   = (egObject **) EG_alloc(2 *         nedge * sizeof(egObject *));
-  egObject **edge_to_per_edge = (egObject **) EG_alloc(            nedge * sizeof(egObject *));
+  egObject **new_edges        = NULL;
+  egObject **new_edges_geom   = NULL;
+  egObject **edge_to_per_edge = NULL;
 
-  for (int iedge=0; iedge<nedge; ++iedge) {
-    egObject  *edge_geom;
-    int       *edge_senses;
-    int        edge_nnode;
-    egObject **edge_nodes;
-    double     edge_limits[2];
-    EG_getTopology(edges[iedge], &edge_geom, &oclass, &mtype, edge_limits, &edge_nnode, &edge_nodes, &edge_senses);
-
-    // TODO: generalize to degen edges
-    int ind_node0 = EG_indexBodyTopo(bodies[0], edge_nodes[0]);
-    int ind_node1 = EG_indexBodyTopo(bodies[0], edge_nodes[1]);
-
-    // > Copy edge geometry object with no transformation
-    egObject *new_edge_geom = NULL;
-    EG_copyObject(edge_geom, NULL, &new_edge_geom);
-
-    egObject* new_edge_nodes[2] = {new_nodes[ind_node0-1], new_nodes[ind_node1-1]};
-
-    EG_makeTopology(context, new_edge_geom, oclass, mtype, edge_limits, edge_nnode, new_edge_nodes, edge_senses, &new_edges[nnew_edge]);
-    new_edges_geom[nnew_edge] = new_edge_geom;
-    nnew_edge++;
-  }
-
-  for (int iedge=0; iedge<nedge; ++iedge) {
-
-    egObject  *edge_geom;
-    int       *edge_senses;
-    int        edge_nnode;
-    egObject **edge_nodes;
-    double     edge_limits[2];
-    EG_getTopology(edges[iedge], &edge_geom, &oclass, &mtype, edge_limits, &edge_nnode, &edge_nodes, &edge_senses);
-    int ind_edge = EG_indexBodyTopo(bodies[0], edges[iedge]);
-
-    if (edge_matching[ind_edge-1]==0) { // not a periodic edge, create new one applying transfo
-
-      // TODO: generalize to degen edges
-      int ind_node0 = EG_indexBodyTopo(bodies[0], edge_nodes[0]);
-      int ind_node1 = EG_indexBodyTopo(bodies[0], edge_nodes[1]);
-
-      // > Copy edge geometry object with transformation
-      egObject *new_edge_geom = NULL;
-      EG_copyObject(edge_geom, eg_transform, &new_edge_geom);
-
-      egObject* new_edge_nodes[2] = {node_to_per_node[ind_node0-1], node_to_per_node[ind_node1-1]};
-      EG_makeTopology(context, new_edge_geom, oclass, mtype, edge_limits, edge_nnode, new_edge_nodes, edge_senses, &new_edges[nnew_edge]);
-      new_edges_geom[nnew_edge] = new_edge_geom;
-      edge_to_per_edge[ind_edge-1] = new_edges[nnew_edge];
-      nnew_edge++;
-    }
-    else {
-      int ind_match_edge = edge_matching[ind_edge-1];
-      if (debug_verbose==1) {
-        printf("  Get edge %d\n", ind_match_edge);
-      }
-
-      edge_to_per_edge[ind_edge-1] = new_edges[ind_match_edge-1];
-    }
-  }
-  EG_free(edges);
+  _duplicate_and_periodize_edges(
+    context,
+    model,
+    edge_matching,
+    eg_transform,
+    new_nodes,
+    node_to_per_node,
+    &nnew_edge,
+    &new_edges,
+    &new_edges_geom,
+    &edge_to_per_edge
+  );
 
 
   /**
@@ -12032,254 +12423,33 @@ EG_periodize_model
    *   - do face geom duplication/transformation keeping loop->new_face_geom link
    *   - build loop->face to be able to identify loops that has not to be periodized
    */
-  int        nnew_face_geom = 0;
-  int       *loop_face      = (int       *) EG_alloc(  nloop * sizeof(int       ));
-  int       *loop_face_geom = (int       *) EG_alloc(2*nloop * sizeof(int       ));
-  egObject **new_faces_geom = (egObject **) EG_alloc(2*nface * sizeof(egObject *));
-
-  for (int iface=0; iface<nface; ++iface) {
-
-    egObject  *face_geom;
-    int       *face_senses;
-    int        face_nloop;
-    egObject **face_loops;
-    double     face_limits[4];
-    EG_getTopology(faces[iface], &face_geom, &oclass, &mtype, face_limits, &face_nloop, &face_loops, &face_senses);
-    int ind_face = EG_indexBodyTopo(bodies[0], faces[iface]);
-
-    // > Copy face geometry object with no transformation
-    egObject *new_face_geom = NULL;
-    EG_copyObject(face_geom, NULL, &new_face_geom);
-
-    for (int iloop=0; iloop<face_nloop; ++iloop) {
-      int ind_loop = EG_indexBodyTopo(bodies[0], face_loops[iloop]);
-
-      loop_face     [ind_loop-1] = ind_face;
-      loop_face_geom[ind_loop-1] = nnew_face_geom;
-    }
-
-    new_faces_geom[nnew_face_geom++] = new_face_geom;
-  }
-
-  for (int iface=0; iface<nface; ++iface) {
-
-    egObject  *face_geom;
-    int       *face_senses;
-    int        face_nloop;
-    egObject **face_loops;
-    double     face_limits[4];
-    EG_getTopology(faces[iface], &face_geom, &oclass, &mtype, face_limits, &face_nloop, &face_loops, &face_senses);
-    int ind_face = EG_indexBodyTopo(bodies[0], faces[iface]);
-
-    if (face_matching[ind_face-1]==0) { // not a periodic face, create new one applying transfo
-
-      // > Copy face geometry object with transformation
-      egObject *new_face_geom = NULL;
-      EG_copyObject(face_geom, eg_transform, &new_face_geom);
-
-      for (int iloop=0; iloop<face_nloop; ++iloop) {
-        int ind_loop = EG_indexBodyTopo(bodies[0], face_loops[iloop]);
-        loop_face_geom[nloop+ind_loop-1] = nnew_face_geom;
-      }
-
-      new_faces_geom[nnew_face_geom++] = new_face_geom;
-    }
-  }
-
-
-  /**
-   * Recreate all loops and then their duplicate
-   */
+  int        nnew_edge_curve  = 0;
+  egObject **new_edges_curves = NULL;
   int        nnew_loop        = 0;
-  egObject **new_loops        = (egObject **) EG_alloc(2*nloop * sizeof(egObject *));
-  egObject **loop_to_per_loop = (egObject **) EG_alloc(  nloop * sizeof(egObject *));
-
-  for (int iloop=0; iloop<nloop; ++iloop) {
-    egObject  *loop_geom;
-    int       *loop_senses;
-    int        loop_nedge;
-    egObject **loop_edges;
-    double     loop_limits[2];
-    EG_getTopology(loops[iloop], &loop_geom, &oclass, &mtype, loop_limits, &loop_nedge, &loop_edges, &loop_senses);
-    int ind_loop = EG_indexBodyTopo(bodies[0], loops[iloop]);
-
-    egObject **new_loop_edges = (egObject **) EG_alloc(2 * loop_nedge * sizeof(egObject *));
-    for (int iedge=0; iedge<loop_nedge; ++iedge) {
-      int ind_edge = EG_indexBodyTopo(bodies[0], loop_edges[iedge]);
-      new_loop_edges[iedge] = new_edges[ind_edge-1];
-
-      if (loop_geom != NULL && loop_geom->mtype!=PLANE) {
-
-        int       edge_pcurve_oclass;
-        int       edge_pcurve_mtype;
-        int      *edge_pcurve_ivec;
-        double   *edge_pcurve_rvec;
-        egObject *edge_curve_unknown;
-        EG_getGeometry(
-          loop_edges[loop_nedge+iedge],
-          &edge_pcurve_oclass,
-          &edge_pcurve_mtype,
-          &edge_curve_unknown,
-          &edge_pcurve_ivec,
-          &edge_pcurve_rvec
-        );
-
-        EG_makeGeometry(
-          context,
-          PCURVE,
-          edge_pcurve_mtype,
-          loop_geom,
-          edge_pcurve_ivec,
-          edge_pcurve_rvec,
-          &new_loop_edges[loop_nedge+iedge]
-        );
-
-        new_edges_curve[nnew_edge_curve++] = new_loop_edges[loop_nedge+iedge];
-
-        free(edge_pcurve_ivec);
-        free(edge_pcurve_rvec);
-      }
-    }
-
-    int iface_geom = loop_face_geom[ind_loop-1];
-    egObject *new_loop_face_geom = (loop_geom == NULL) ? NULL : new_faces_geom[iface_geom];
-    EG_makeTopology(context, new_loop_face_geom, oclass, mtype, loop_limits, loop_nedge, new_loop_edges, loop_senses, &new_loops[nnew_loop]);
-    nnew_loop++;
-
-    EG_free(new_loop_edges);
-  }
-
-  for (int iloop=0; iloop<nloop; ++iloop) {
-    egObject  *loop_geom;
-    int       *loop_senses;
-    int        loop_nedge;
-    egObject **loop_edges;
-    double     loop_limits[2];
-    EG_getTopology(loops[iloop], &loop_geom, &oclass, &mtype, loop_limits, &loop_nedge, &loop_edges, &loop_senses);
-    int ind_loop = EG_indexBodyTopo(bodies[0], loops[iloop]);
-
-    int ind_face = loop_face[ind_loop-1];
-    if (face_matching[ind_face-1]==0) { // loop not on a periodic face, create new loop applying transfo
-
-      egObject **new_loop_edges = (egObject **) EG_alloc(2 * loop_nedge * sizeof(egObject *));
-      for (int iedge=0; iedge<loop_nedge; ++iedge) {
-        int ind_edge = EG_indexBodyTopo(bodies[0], loop_edges[iedge]);
-
-        if (edge_matching[ind_edge-1]==0) { // a periodic edge have been created
-          new_loop_edges[iedge] = edge_to_per_edge[ind_edge-1];
-        }
-        else {
-          int ind_match_edge = edge_matching[ind_edge-1];
-          new_loop_edges[iedge] = new_edges[ind_match_edge-1];
-          loop_senses[iedge] *= edge_matching_sign[ind_edge-1];
-        }
-
-        if (loop_geom != NULL && loop_geom->mtype!=PLANE) {
-
-          int       edge_pcurve_oclass;
-          int       edge_pcurve_mtype;
-          int      *edge_pcurve_ivec;
-          double   *edge_pcurve_rvec;
-          egObject *edge_curve_unknown;
-          EG_getGeometry(
-            loop_edges[loop_nedge+iedge],
-            &edge_pcurve_oclass,
-            &edge_pcurve_mtype,
-            &edge_curve_unknown,
-            &edge_pcurve_ivec,
-            &edge_pcurve_rvec
-          );
-
-          EG_makeGeometry(
-            context,
-            PCURVE,
-            edge_pcurve_mtype,
-            loop_geom,
-            edge_pcurve_ivec,
-            edge_pcurve_rvec,
-            &new_loop_edges[loop_nedge+iedge]
-          );
-
-          new_edges_curve[nnew_edge_curve++] = new_loop_edges[loop_nedge+iedge];
-
-          free(edge_pcurve_ivec);
-          free(edge_pcurve_rvec);
-        }
-      }
-
-      int iface_geom = loop_face_geom[nloop+ind_loop-1];
-      egObject *new_loop_face_geom = (loop_geom == NULL) ? NULL : new_faces_geom[iface_geom];
-      EG_makeTopology(context, new_loop_face_geom, oclass, mtype, loop_limits, loop_nedge, new_loop_edges, loop_senses, &new_loops[nnew_loop]);
-      loop_to_per_loop[ind_loop-1] = new_loops[nnew_loop];
-      nnew_loop++;
-
-      EG_free(new_loop_edges);
-    }
-
-  }
-  EG_free(loops);
-  EG_free(loop_face);
-  EG_free(loop_face_geom);
-
-
-  /**
-   * Recreate all faces and then their duplicate
-   */
+  egObject **new_loops        = NULL;
   int        nnew_face        = 0;
-  egObject **new_faces        = (egObject **) EG_alloc(2*nface * sizeof(egObject *));
-  egObject **face_to_per_face = (egObject **) EG_alloc(  nface * sizeof(egObject *));
+  egObject **new_faces        = NULL;
+  egObject **new_faces_geom   = NULL;
+  egObject **face_to_per_face = NULL;
 
-  for (int iface=0; iface<nface; ++iface) {
-    egObject  *face_geom;
-    int       *face_senses;
-    int        face_nloop;
-    egObject **face_loops;
-    double     face_limits[4];
-    EG_getTopology(faces[iface], &face_geom, &oclass, &mtype, face_limits, &face_nloop, &face_loops, &face_senses);
-
-    egObject **new_face_loops = (egObject **) EG_alloc(face_nloop * sizeof(egObject *));
-    for (int iloop=0; iloop<face_nloop; ++iloop) {
-      int ind_loop = EG_indexBodyTopo(bodies[0], face_loops[iloop]);
-      new_face_loops[iloop] = new_loops[ind_loop-1];
-    }
-
-    EG_makeTopology(context, new_faces_geom[nnew_face], oclass, mtype, face_limits, face_nloop, new_face_loops, face_senses, &new_faces[nnew_face]);
-    nnew_face++;
-
-    EG_free(new_face_loops);
-  }
-
-  for (int iface=0; iface<nface; ++iface) {
-    egObject  *face_geom;
-    int       *face_senses;
-    int        face_nloop;
-    egObject **face_loops;
-    double     face_limits[4];
-    EG_getTopology(faces[iface], &face_geom, &oclass, &mtype, face_limits, &face_nloop, &face_loops, &face_senses);
-    int ind_face = EG_indexBodyTopo(bodies[0], faces[iface]);
-
-    if (face_matching[ind_face-1]==0) { // not a periodic face, create new one applying transfo
-
-      egObject **new_face_loops = (egObject **) EG_alloc(face_nloop * sizeof(egObject *));
-      for (int iloop=0; iloop<face_nloop; ++iloop) {
-        int ind_loop = EG_indexBodyTopo(bodies[0], face_loops[iloop]);
-        new_face_loops[iloop] = loop_to_per_loop[ind_loop-1];
-      }
-
-      EG_makeTopology(context, new_faces_geom[nnew_face], oclass, mtype, face_limits, face_nloop, new_face_loops, face_senses, &new_faces[nnew_face]);
-      face_to_per_face[ind_face-1] = new_faces[nnew_face];
-      nnew_face++;
-
-      EG_free(new_face_loops);
-    }
-    else {
-      int ind_match_face = face_matching[ind_face-1];
-
-      face_to_per_face[ind_face-1] = new_faces[ind_match_face-1];
-    }
-  }
-  EG_free(faces);
-  EG_free(loop_to_per_loop);
+  _duplicate_and_periodize_faces_and_loops(
+    context,
+    model,
+    edge_matching,
+    edge_matching_sign,
+    face_matching,
+    eg_transform,
+    new_edges,
+    edge_to_per_edge,
+    &nnew_edge_curve,
+    &new_edges_curves,
+    &nnew_loop,
+    &new_loops,
+    &nnew_face,
+    &new_faces,
+    &new_faces_geom,
+    &face_to_per_face
+  );
 
 
   // > Reassemble shell
@@ -12368,9 +12538,9 @@ EG_periodize_model
   EG_free(new_edges_geom);
 
   for (int iedge_curve=0; iedge_curve<nnew_edge_curve; ++iedge_curve) {
-    EG_deleteObject(new_edges_curve[iedge_curve]);
+    EG_deleteObject(new_edges_curves[iedge_curve]);
   }
-  EG_free(new_edges_curve);
+  EG_free(new_edges_curves);
 
   for (int inode=0; inode<nnew_node; ++inode) {
     EG_deleteObject(new_nodes[inode]);
