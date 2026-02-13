@@ -550,7 +550,7 @@ _duplicate_and_periodize_edges
       nnew_edge++;
     }
     else {
-      int ind_match_edge = edge_matching[ind_edge-1];
+      int ind_match_edge = abs(edge_matching[ind_edge-1]);
 
       edge_to_per_edge[ind_edge-1] = new_edges[ind_match_edge-1];
     }
@@ -573,7 +573,6 @@ _duplicate_and_periodize_faces_and_loops
   egObject   *context,
   egObject   *model,
   int        *edge_matching,
-  int        *edge_matching_sign,
   int        *face_matching,
   egObject   *eg_transform,
   egObject  **new_edges,
@@ -743,9 +742,10 @@ _duplicate_and_periodize_faces_and_loops
           new_loop_edges[iedge] = edge_to_per_edge[ind_edge-1];
         }
         else {
-          int ind_match_edge = edge_matching[ind_edge-1];
-          new_loop_edges[iedge] = new_edges[ind_match_edge-1];
-          loop_senses[iedge] *= edge_matching_sign[ind_edge-1];
+          int ind_match_edge      = abs(edge_matching[ind_edge-1]);
+          int ind_match_edge_sign = (edge_matching[ind_edge-1]>0) ? 1 : -1;
+          new_loop_edges[iedge]   = new_edges[ind_match_edge-1];
+          loop_senses[iedge]     *= ind_match_edge_sign;
         }
 
         if (loop_geom != NULL && loop_geom->mtype!=PLANE) {
@@ -849,7 +849,7 @@ _duplicate_and_periodize_faces_and_loops
       EG_free(new_face_loops);
     }
     else {
-      int ind_match_face = face_matching[ind_face-1];
+      int ind_match_face = abs(face_matching[ind_face-1]);
 
       face_to_per_face[ind_face-1] = new_faces[ind_match_face-1];
     }
@@ -12332,41 +12332,32 @@ EG_periodize_model
    * Rewrite matching patch pairs with relative orientation in other frame
    * while building work array
    */
-  patch_to_per_patch[0] = (int *) EG_alloc(nnode * sizeof(int));
-  patch_to_per_patch[1] = (int *) EG_alloc(nedge * sizeof(int));
-  patch_to_per_patch[2] = (int *) EG_alloc(nface * sizeof(int));
+  patch_to_per_patch[0] = (int *) EG_calloc(nnode, sizeof(int));
+  patch_to_per_patch[1] = (int *) EG_calloc(nedge, sizeof(int));
+  patch_to_per_patch[2] = (int *) EG_calloc(nface, sizeof(int));
   if (dim==3) {
-    patch_to_per_patch[3] = (int *) EG_alloc(nbody * sizeof(int));
+    patch_to_per_patch[3] = (int *) EG_calloc(nbody, sizeof(int));
   }
 
-  int *node_matching = (int *) calloc(nnode, sizeof(int));
   for (int i_pair=0; i_pair<node_pairs_idx[1]; ++i_pair) {
     int i_node_src = node_pairs[2*i_pair  ];
     int i_node_tgt = node_pairs[2*i_pair+1];
     patch_to_per_patch[0][i_node_src-1] = i_node_tgt;
-    node_matching        [i_node_src-1] = i_node_tgt;
   }
   EG_free(node_pairs_idx);
   EG_free(node_pairs);
 
-  int *edge_matching      = (int *) calloc(nedge, sizeof(int));
-  int *edge_matching_sign = (int *) calloc(nedge, sizeof(int)); /// DEL
   for (int i_pair=0; i_pair<edge_pairs_idx[1]; ++i_pair) {
     int i_edge_src = edge_pairs[2*i_pair  ];
     int i_edge_tgt = edge_pairs[2*i_pair+1];
-    patch_to_per_patch[1][i_edge_src-1] = i_edge_tgt; //MERGE
-    edge_matching        [i_edge_src-1] = i_edge_tgt;
-    edge_matching_sign   [i_edge_src-1] = edge_pairs_sign[i_pair];
+    patch_to_per_patch[1][i_edge_src-1] = i_edge_tgt * edge_pairs_sign[i_pair];
   }
 
-
-  int *face_matching = (int *) calloc(nface, sizeof(int));
   if (dim==3) {
     for (int i_pair=0; i_pair<n_pairs; ++i_pair) {
       int i_face_src = pairs[2*i_pair  ];
       int i_face_tgt = pairs[2*i_pair+1];
       patch_to_per_patch[2][i_face_src-1] = i_face_tgt;
-      face_matching        [i_face_src-1] = i_face_tgt;
     }
 
     EG_free(edge_pairs_idx);
@@ -12387,13 +12378,12 @@ EG_periodize_model
   _duplicate_and_periodize_nodes(
     context,
     model,
-    node_matching,
+    patch_to_per_patch[0],
     hmatrix,
     &nnew_node,
     &new_nodes,
     &node_to_per_node
   );
-  EG_free(node_matching);
 
 
   /**
@@ -12407,7 +12397,7 @@ EG_periodize_model
   _duplicate_and_periodize_edges(
     context,
     model,
-    edge_matching,
+    patch_to_per_patch[1],
     eg_transform,
     new_nodes,
     node_to_per_node,
@@ -12435,9 +12425,8 @@ EG_periodize_model
   _duplicate_and_periodize_faces_and_loops(
     context,
     model,
-    edge_matching,
-    edge_matching_sign,
-    face_matching,
+    patch_to_per_patch[1],
+    patch_to_per_patch[2],
     eg_transform,
     new_edges,
     edge_to_per_edge,
@@ -12482,23 +12471,18 @@ EG_periodize_model
 
 
   for (int iedge=0; iedge<nedge; ++iedge) {
-    int ind_edge = EG_indexBodyTopo(per_body, edge_to_per_edge[iedge]);
-    patch_to_per_patch[1][iedge] = ind_edge;
-    if (edge_matching[iedge] != 0) {
-      patch_to_per_patch[1][iedge]*= edge_matching_sign[iedge];
+    if (patch_to_per_patch[1][iedge] == 0) {
+      int ind_edge = EG_indexBodyTopo(per_body, edge_to_per_edge[iedge]);
+      patch_to_per_patch[1][iedge] = ind_edge;
     }
   }
-  EG_free(edge_matching);
-  EG_free(edge_matching_sign);
   EG_free(edge_to_per_edge);
 
   for (int iface=0; iface<nface; ++iface) {
     int ind_face = EG_indexBodyTopo(per_body, face_to_per_face[iface]);
     patch_to_per_patch[2][iface] = ind_face;
   }
-  EG_free(face_matching);
   EG_free(face_to_per_face);
-
 
 
   if (debug_verbose==1) {
