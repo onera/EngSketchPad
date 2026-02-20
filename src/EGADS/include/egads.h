@@ -217,7 +217,8 @@ __ProtoExt__ int  EG_compute_edge_pairs_from_node_pairs(egObject *object, int n_
                       int **edge_pairs_idx_out, int **edge_pairs_out, int **edge_pairs_sign_out);
 __ProtoExt__ int EG_periodize_model(int dim, egObject *context, egObject *model,
                                     int n_pairs, int *pairs, double *hmatrix,
-                                    int *patch_to_per_patch[3], egObject  **out_model);
+                                    int *patch_to_patch[4], int *patch_to_per_patch[4],
+                                    egObject  **out_model);
 /* tessellation functions */
 
 __ProtoExt__ int  EG_setTessParam( ego context, int iparam, double value,

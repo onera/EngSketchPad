@@ -496,9 +496,9 @@ _duplicate_and_periodize_edges
   EG_getBodyTopos(bodies[0], NULL, FACE, &nface, &faces);
 
   int        nnew_edge        = 0;
-  egObject **new_edges        = (egObject **) EG_alloc(2 *         nedge * sizeof(egObject *));
-  egObject **new_edges_geom   = (egObject **) EG_alloc(2 *         nedge * sizeof(egObject *));
-  egObject **edge_to_per_edge = (egObject **) EG_alloc(            nedge * sizeof(egObject *));
+  egObject **new_edges        = (egObject **) EG_alloc(2 * nedge * sizeof(egObject *));
+  egObject **new_edges_geom   = (egObject **) EG_alloc(2 * nedge * sizeof(egObject *));
+  egObject **edge_to_per_edge = (egObject **) EG_alloc(    nedge * sizeof(egObject *));
 
   for (int iedge=0; iedge<nedge; ++iedge) {
 
@@ -12085,6 +12085,7 @@ EG_periodize_model
   int         n_pairs,
   int        *pairs,
   double     *hmatrix,
+  int        *patch_to_patch[4],
   int        *patch_to_per_patch[4],
   egObject  **out_model
 )
@@ -12211,10 +12212,14 @@ EG_periodize_model
    * Rewrite matching patch pairs with relative orientation in other frame
    * while building work array
    */
+  patch_to_patch    [0] = (int *) EG_calloc(nnode, sizeof(int));
+  patch_to_patch    [1] = (int *) EG_calloc(nedge, sizeof(int));
+  patch_to_patch    [2] = (int *) EG_calloc(nface, sizeof(int));
   patch_to_per_patch[0] = (int *) EG_calloc(nnode, sizeof(int));
   patch_to_per_patch[1] = (int *) EG_calloc(nedge, sizeof(int));
   patch_to_per_patch[2] = (int *) EG_calloc(nface, sizeof(int));
   if (dim==3) {
+    patch_to_patch    [3] = (int *) EG_calloc(nbody, sizeof(int));
     patch_to_per_patch[3] = (int *) EG_calloc(nbody, sizeof(int));
   }
 
@@ -12242,6 +12247,7 @@ EG_periodize_model
     EG_free(edge_pairs_idx);
     EG_free(edge_pairs);
 
+    patch_to_patch    [3][0] = 1;
     patch_to_per_patch[3][0] = 2;
 
   }
@@ -12343,28 +12349,38 @@ EG_periodize_model
    * Once body is created number have been attributed to entities, so we can create matching table
    */
   for (int inode=0; inode<nnode; ++inode) {
-    int ind_node = EG_indexBodyTopo(per_body, node_to_per_node[inode]);
-    patch_to_per_patch[0][inode] = ind_node;
+    int ind_node_src = EG_indexBodyTopo(per_body, new_nodes       [inode]);
+    int ind_node_per = EG_indexBodyTopo(per_body, node_to_per_node[inode]);
+    patch_to_patch    [0][inode] = ind_node_src;
+    patch_to_per_patch[0][inode] = ind_node_per;
   }
   EG_free(node_to_per_node);
 
 
   for (int iedge=0; iedge<nedge; ++iedge) {
-    if (patch_to_per_patch[1][iedge] == 0) {
-      int ind_edge = EG_indexBodyTopo(per_body, edge_to_per_edge[iedge]);
-      patch_to_per_patch[1][iedge] = ind_edge;
-    }
+    int ind_edge_src = EG_indexBodyTopo(per_body, new_edges       [iedge]);
+    int ind_edge_per = EG_indexBodyTopo(per_body, edge_to_per_edge[iedge]);
+    int sign = patch_to_per_patch[1][iedge]<0 ? -1 : 1;
+
+    patch_to_patch    [1][iedge] = ind_edge_src;
+    patch_to_per_patch[1][iedge] = ind_edge_per*sign;
   }
   EG_free(edge_to_per_edge);
 
   for (int iface=0; iface<nface; ++iface) {
-    int ind_face = EG_indexBodyTopo(per_body, face_to_per_face[iface]);
-    patch_to_per_patch[2][iface] = ind_face;
+    int ind_face_src = EG_indexBodyTopo(per_body, new_faces       [iface]);
+    int ind_face_per = EG_indexBodyTopo(per_body, face_to_per_face[iface]);
+    patch_to_patch    [2][iface] = ind_face_src;
+    patch_to_per_patch[2][iface] = ind_face_per;
   }
   EG_free(face_to_per_face);
 
 
   if (debug_verbose==1) {
+    _print_array_int(patch_to_patch    [0], nnode, "patch_to_patch[0]     :: ");
+    _print_array_int(patch_to_patch    [1], nedge, "patch_to_patch[1]     :: ");
+    _print_array_int(patch_to_patch    [2], nface, "patch_to_patch[2]     :: ");
+
     _print_array_int(patch_to_per_patch[0], nnode, "patch_to_per_patch[0] :: ");
     _print_array_int(patch_to_per_patch[1], nedge, "patch_to_per_patch[1] :: ");
     _print_array_int(patch_to_per_patch[2], nface, "patch_to_per_patch[2] :: ");
@@ -12379,7 +12395,7 @@ EG_periodize_model
    */
   EG_deleteObject(per_shell);
   for (int iface=0; iface<nnew_face; ++iface) {
-    EG_deleteObject(new_faces     [iface]);
+    EG_deleteObject(new_faces[iface]);
   }
   EG_free(new_faces);
 
