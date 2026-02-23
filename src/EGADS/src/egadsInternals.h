@@ -11,8 +11,9 @@
  *
  */
 
-#define PI       3.1415926535897931159979635
-#define KNDIFF   1.0e-5         // knot difference
+#define PI        3.1415926535897931159979635
+#define KNDIFF    1.0e-5         // knot difference
+#define PERIO_TOL 1.e-8
 
 
 #ifdef __HOST_AND_DEVICE__
@@ -36,15 +37,15 @@ extern "C" {
 #endif
 
 
-__ProtoExt__ /*@null@*/ /*@out@*/ /*@only@*/ 
+__ProtoExt__ /*@null@*/ /*@out@*/ /*@only@*/
              void *EG_alloc( size_t nbytes );
-__ProtoExt__ /*@null@*/ /*@only@*/ 
+__ProtoExt__ /*@null@*/ /*@only@*/
              void *EG_calloc( size_t nele, size_t size );
-__ProtoExt__ /*@null@*/ /*@only@*/ 
+__ProtoExt__ /*@null@*/ /*@only@*/
              void *EG_reall( /*@null@*/ /*@only@*/ /*@returned@*/ void *ptr,
                              size_t nbytes );
 __ProtoExt__ void EG_free( /*@null@*/ /*@only@*/ void *pointer );
-__ProtoExt__ /*@null@*/ /*@only@*/ 
+__ProtoExt__ /*@null@*/ /*@only@*/
              char *EG_strdup( /*@null@*/ const char *str );
 
 __ProtoExt__ /*@kept@*/ /*@null@*/ egObject *
@@ -57,9 +58,9 @@ __ProtoExt__ int  EG_dereferenceObject( egObject *object,
                                         /*@null@*/ const egObject *ref );
 __ProtoExt__ int  EG_dereferenceTopObj( egObject *object,
                                         /*@null@*/ const egObject *ref );
-__ProtoExt__ int  EG_referenceObject( egObject *object, 
+__ProtoExt__ int  EG_referenceObject( egObject *object,
                                       /*@null@*/ const egObject *ref );
-__ProtoExt__ int  EG_referenceTopObj( egObject *object, 
+__ProtoExt__ int  EG_referenceTopObj( egObject *object,
                                       /*@null@*/ const egObject *ref );
 __ProtoExt__ int  EG_removeCntxtRef( egObject *object );
 

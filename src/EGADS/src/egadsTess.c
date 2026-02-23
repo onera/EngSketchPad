@@ -162,8 +162,6 @@ __PROTO_H_AND_D__ int  EG_mapSequen( egObject *src, egObject *dst,
                                      egObject **result );
 #endif
 
-static const double PERIO_TOL = 1.e-8;
-
 
 static inline
 double

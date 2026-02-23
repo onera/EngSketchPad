@@ -244,7 +244,19 @@ public:
   extern "C" int  EG_saveModel( const egObject *model, const char *name );
 
 
-static const double PERIO_TOL = 1.e-8;
+static
+double
+_euclidian_distance
+(
+  double xyz1[3],
+  double xyz2[3]
+)
+{
+  double dx = xyz1[0]-xyz2[0];
+  double dy = xyz1[1]-xyz2[1];
+  double dz = xyz1[2]-xyz2[2];
+  return sqrt(dx*dx + dy*dy + dz*dz);
+}
 
 
 static
@@ -280,10 +292,13 @@ _apply_homogeneous_matrix
 }
 
 
+/**
+ * From given body and face, return the number of edges indicent to the face
+ */
 static int
 _count_face_nedge
 (
-  egObject *object,
+  egObject *body,
   egObject *face
 )
 {
@@ -294,22 +309,55 @@ _count_face_nedge
   int *senses;
 
   int face_nedge = 0;
-  EG_getTopology(face, &geom, &oclass, &mtype, NULL, &nloop, &loops,
-                &senses);
+  EG_getTopology(
+    face,
+    &geom,
+    &oclass,
+    &mtype,
+    NULL,
+    &nloop,
+    &loops,
+    &senses
+  );
+
   for (int i = 0; i < nloop; i++) {
-    EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
-                  &edges, &senses);
+
+    EG_getTopology(
+      loops[i],
+      &geom,
+      &oclass,
+      &mtype,
+      NULL,
+      &nedge,
+      &edges,
+      &senses
+    );
+
     for (int i_edge=0; i_edge<nedge; ++i_edge) {
-      int k = EG_indexBodyTopo(object, edges[i_edge]);
-      if (k <= EGADS_SUCCESS) {
-        int face_id = EG_indexBodyTopo(object, face);
-        printf("EGADS Error: Face %d -> Can not find Edge = %d!\n",
-               face_id, i_edge);
-        exit(2);
+
+      int edge_id = EG_indexBodyTopo(body, edges[i_edge]);
+
+      if (edge_id <= EGADS_SUCCESS) {
+        int face_id = EG_indexBodyTopo(body, face);
+        printf(
+          "EGADS Error: Face %d -> Can not find Edge = %d!\n",
+          face_id,
+          i_edge
+        );
         return EGADS_NOTFOUND;
       }
-      EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
-                    &nodes, &senses);
+
+      EG_getTopology(
+        edges[i_edge],
+        &geom,
+        &oclass,
+        &mtype,
+        NULL,
+        &nnode,
+        &nodes,
+        &senses
+      );
+
       if (nnode==2) {
         face_nedge += 1;
       }
@@ -320,10 +368,14 @@ _count_face_nedge
 }
 
 
-static void
+/**
+ * From given body and face,
+ * build the face->node connectivity
+ */
+static int
 _store_face_nodes
 (
-  egObject   *object,
+  egObject   *body,
   egObject   *face,
   int         n_face_vertices,
   egObject ***face_vertices
@@ -345,13 +397,16 @@ _store_face_nodes
     EG_getTopology(loops[i], &geom, &oclass, &mtype, NULL, &nedge,
                   &edges, &senses);
     for (int i_edge=0; i_edge<nedge; ++i_edge) {
-      int k = EG_indexBodyTopo(object, edges[i_edge]);
+      int edge_id = EG_indexBodyTopo(body, edges[i_edge]);
 
-      if (k <= EGADS_SUCCESS) {
-        int face_id = EG_indexBodyTopo(object, face);
-        printf("EGADS Error: Face %d -> Can not find Edge = %d!\n",
-               face_id, k);
-        exit(2);
+      if (edge_id <= EGADS_SUCCESS) {
+        int face_id = EG_indexBodyTopo(body, face);
+        printf(
+          "EGADS Error: Face %d -> Can not find Edge = %d!\n",
+          face_id,
+          i_edge
+        );
+        return EGADS_NOTFOUND;
       }
       int *vtx_senses = NULL;
       EG_getTopology(edges[i_edge], &geom, &oclass, &mtype, NULL, &nnode,
@@ -370,30 +425,81 @@ _store_face_nodes
   }
 
   *face_vertices = _face_vertices;
+
+  return EGADS_SUCCESS;
+}
+
+
+static int g_stride;
+
+static int
+cmp_strided
+(
+  const void *a,
+  const void *b
+)
+{
+  const int *pa = (const int *) a;
+  const int *pb = (const int *) b;
+
+  for (int i = 0; i < g_stride; ++i) {
+      if (pa[i] < pb[i]) return -1;
+      if (pa[i] > pb[i]) return 1;
+  }
+  return 0;
 }
 
 
 static int
-_unexisting_pair
+unique_strided_array
 (
-  int  n_pairs,
-  int *pairs,
-  int  pair[2]
+  int *array,
+  int size,
+  int stride
 )
 {
-  if (n_pairs==0) {
-    return 1;
-  }
-  for (int i_pair=0; i_pair<n_pairs; ++i_pair) {
-    if ((pairs[2*i_pair]==pair[0] && pairs[2*i_pair+1]==pair[1]) ||
-        (pairs[2*i_pair]==pair[1] && pairs[2*i_pair+1]==pair[0])) {
-      return 0;
+  if (size <= 1) return size;
+
+  g_stride = stride;
+
+  qsort(array, size, stride * sizeof(int), cmp_strided);
+
+  int write = 1;
+
+  for (int read = 1; read < size; ++read) {
+
+    int *prev = array + (write - 1) * stride;
+    int *curr = array + read * stride;
+
+    if (memcmp(prev, curr, stride * sizeof(int)) != 0) {
+      if (write != read) {
+        memcpy(
+          array + write * stride,
+          curr,
+          stride * sizeof(int)
+        );
+      }
+      ++write;
     }
   }
-  return 1;
+
+  return write;
 }
 
 
+/**
+ * From given model, duplicate while periodizing nodes
+ *
+ * Args:
+ *   context             : EGADS context
+ *   model               : model to duplicate and periodize
+ *   node_matching       : periodic nodes matching table (using unique entity index)
+ *   hmatrix             : homogeneous matrix of periodic transformation
+ *   out_nnew_node       : number of created nodes
+ *   out_nodes           : array containing nodes of periodized model
+ *   out_node_to_per_node: table of node->periodized node of new model
+ *
+ */
 static
 void
 _duplicate_and_periodize_nodes
@@ -442,7 +548,7 @@ _duplicate_and_periodize_nodes
     int ind_node = EG_indexBodyTopo(bodies[0], nodes[inode]);
 
     if (node_matching[ind_node-1]==0) { // not a periodic node, create new one applying transfo
-      double new_xyz[3] = {0.,0.,0.};
+      double new_xyz[3];
       _apply_homogeneous_matrix(
         hmatrix,
         xyz,
@@ -468,6 +574,22 @@ _duplicate_and_periodize_nodes
 }
 
 
+/**
+ * From given model, duplicate while periodizing edges
+ *
+ * Args:
+ *   context             : EGADS context
+ *   model               : model to duplicate and periodize
+ *   edge_matching       : periodic edges matching table (using unique entity index)
+ *   eg_transform        : EGADS transformation object (containing homogeneous matrix)
+ *   new_nodes           : previously duplicated and periodized nodes
+ *   node_to_per_node    : table of node->periodized node of new model
+ *   out_nnew_edge       : number of created edges
+ *   out_new_edges       : array containing edges of periodized model
+ *   out_new_edges_geom  : array containing edges geometry objects of periodized model
+ *   out_edge_to_per_edge: table of edge->periodized edge of new model
+ *
+ */
 static
 void
 _duplicate_and_periodize_edges
@@ -584,6 +706,27 @@ _duplicate_and_periodize_edges
 }
 
 
+/**
+ * From given model, duplicate while periodizing loops and faces
+ *
+ * Args:
+ *   context             : EGADS context
+ *   model               : model to duplicate and periodize
+ *   edge_matching       : periodic edges matching table (using unique entity index)
+ *   face_matching       : periodic faces matching table (using unique entity index)
+ *   eg_transform        : EGADS transformation object (containing homogeneous matrix)
+ *   new_edges           : previously duplicated and periodized edges
+ *   edge_to_per_edge    : table of edge->periodized edge of new model
+ *   out_nnew_edge_curve : number of created edge curves
+ *   out_new_edge_curves : array containing edge curve objects of periodized model
+ *   out_nnew_loop       : number of created loops
+ *   out_new_loops       : array containing loops of periodized model
+ *   out_nnew_face       : number of created faces
+ *   out_new_faces       : array containing faces of periodized model
+ *   out_new_faces_geom  : array containing faces geometry objects of periodized model
+ *   out_face_to_per_face: table of face->periodized face of new model
+ *
+ */
 static
 void
 _duplicate_and_periodize_faces_and_loops
@@ -933,6 +1076,19 @@ _duplicate_and_periodize_faces_and_loops
 }
 
 
+/**
+ * From given model, duplicate while periodizing shells
+ *
+ * Args:
+ *   context          : EGADS context
+ *   model            : model to duplicate and periodize
+ *   face_matching    : periodic faces matching table (using unique entity index)
+ *   new_faces        : previously duplicated and periodized faces
+ *   face_to_per_face : table of face->periodized face of new model
+ *   out_nnew_shell   : number of created shells
+ *   out_new_shells   : array containing shells of periodized model
+ *
+ */
 static
 void
 _duplicate_and_periodize_shells
@@ -11739,18 +11895,15 @@ EG_compute_node_pairs_from_face_pairs
       if (n_face_nodes_src!=n_face_nodes_tgt) {
         printf("EGADS Error: Faces %d and %d unmatched (respectively %d and %d nodes)\n",
                src, tgt, n_face_nodes_src, n_face_nodes_tgt);
-        exit(2);
         return EGADS_NOTFOUND;
       }
       else {
         if (face_referencd[src]==1) {
           printf("EGADS Error: Faces %d already referenced\n", src);
-          exit(2);
           return EGADS_NOTFOUND;
         }
         if (face_referencd[tgt]==1) {
           printf("EGADS Error: Faces %d already referenced\n", tgt);
-          exit(2);
           return EGADS_NOTFOUND;
         }
         face_referencd[src] = 1;
@@ -11771,7 +11924,7 @@ EG_compute_node_pairs_from_face_pairs
 
         EG_getTopology(src_face_vertices[i_node_src], &geom, &oclass, &mtype, xyz_src,
                       &ndum, &dum, &senses);
-        double xyz_src_periodize[3] = {xyz_src[0], xyz_src[1], xyz_src[2]};
+        double xyz_src_periodize[3];
         xyz_src_periodize[0] = hm[0]*xyz_src[0] + hm[1]*xyz_src[1] + hm[ 2]*xyz_src[2] + hm[ 3]*1.;
         xyz_src_periodize[1] = hm[4]*xyz_src[0] + hm[5]*xyz_src[1] + hm[ 6]*xyz_src[2] + hm[ 7]*1.;
         xyz_src_periodize[2] = hm[8]*xyz_src[0] + hm[9]*xyz_src[1] + hm[10]*xyz_src[2] + hm[11]*1.;
@@ -11787,33 +11940,30 @@ EG_compute_node_pairs_from_face_pairs
           int ind_node_tgt = EG_indexBodyTopo(object, tgt_face_vertices[i_node_tgt]);
 
           // > Compare coordinates
-          if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<PERIO_TOL*diag &&
-              fabs(xyz_src_periodize[1]-xyz_tgt[1])<PERIO_TOL*diag &&
-              fabs(xyz_src_periodize[2]-xyz_tgt[2])<PERIO_TOL*diag){
+          if (_euclidian_distance(xyz_src_periodize, xyz_tgt)<PERIO_TOL*diag){
             found_match = 1;
-
-            int cdt_pair[2] = {ind_node_src, ind_node_tgt};
-            int donot_exist = _unexisting_pair(node_pairs_idx[i_itrf+1]-node_pairs_idx[i_itrf],
-                                              &node_pairs[node_pairs_idx[i_itrf]],
-                                               cdt_pair);
-            if (donot_exist==1) {
-              node_pairs_idx[i_itrf+1] +=1 ;
-              node_pairs[i_write_pair++] = ind_node_src;
-              node_pairs[i_write_pair++] = ind_node_tgt;
-            }
+            node_pairs_idx[i_itrf+1] +=1 ;
+            node_pairs[i_write_pair++] = ind_node_src;
+            node_pairs[i_write_pair++] = ind_node_tgt;
             break;
           }
         }
         if (found_match==0) {
           printf("EGADS Error: Node %d from face %d do not match any node from face %d\n",
             EG_indexBodyTopo(object, src_face_vertices[i_node_src]), src, tgt);
-          exit(2);
           return EGADS_NOTFOUND;
         }
       }
       EG_free(src_face_vertices);
       EG_free(tgt_face_vertices);
     }
+
+    int n_unique = unique_strided_array(
+      &node_pairs[node_pairs_idx[i_itrf]],
+      node_pairs_idx[i_itrf+1]-node_pairs_idx[i_itrf],
+      2
+    );
+    node_pairs_idx[i_itrf+1] = node_pairs_idx[i_itrf] + n_unique;
   }
 
   node_pairs = (int *) realloc(node_pairs, 2*node_pairs_idx[n_itrf]*sizeof(int));
@@ -11937,9 +12087,7 @@ EG_compute_edge_sign_and_node_pairs_from_edge_pairs
             xyz_src_periodize
           );
 
-          if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<PERIO_TOL*diag &&
-              fabs(xyz_src_periodize[1]-xyz_tgt[1])<PERIO_TOL*diag &&
-              fabs(xyz_src_periodize[2]-xyz_tgt[2])<PERIO_TOL*diag){
+          if (_euclidian_distance(xyz_src_periodize, xyz_tgt)<PERIO_TOL*diag){
             nmatch++;
             src_tgt_node_pairs[i_node_src] = i_node_tgt;
           }
@@ -12053,7 +12201,6 @@ EG_compute_edge_pairs_from_node_pairs
       if (n_face_edges_src!=n_face_edges_tgt) {
         printf("EGADS Error: Faces %d and %d unmatched (respectively %d and %d nodes)\n",
                src, tgt, n_face_edges_src, n_face_edges_tgt);
-        exit(2);
         return EGADS_NOTFOUND;
       }
       else {
@@ -12135,15 +12282,15 @@ EG_compute_edge_pairs_from_node_pairs
             int pairs[2] = {EG_indexBodyTopo(object, face_edge[i_src_edge]),
                             EG_indexBodyTopo(object, face_edge[i_tgt_edge])};
             edge_pair_found ++;
-            if (edge_pair_found==1 && _unexisting_pair(i_write_pair, edge_pairs, pairs)) {
+            if (edge_pair_found==1) {
               if (match[0]==0 && match[1]==1) {
-                edge_pairs_sign[i_write_pair] = 1;
+                edge_pairs[2*i_write_pair  ] = pairs[0];
+                edge_pairs[2*i_write_pair+1] = pairs[1];
               }
               else {
-                edge_pairs_sign[i_write_pair] = -1;
+                edge_pairs[2*i_write_pair  ] = pairs[0];
+                edge_pairs[2*i_write_pair+1] =-pairs[1];
               }
-              edge_pairs[2*i_write_pair  ] = pairs[0];
-              edge_pairs[2*i_write_pair+1] = pairs[1];
               edge_pairs_idx[i_itrf+1] ++;
               i_write_pair++;
             }
@@ -12152,7 +12299,6 @@ EG_compute_edge_pairs_from_node_pairs
 
         if (edge_pair_found==0) {
           printf("EGADS Error: Edge %d has found no pair\n", EG_indexBodyTopo(object, face_edge[i_src_edge]));
-          exit(2);
           return EGADS_NOTFOUND;
         }
         else if (edge_pair_found>1) {
@@ -12193,31 +12339,29 @@ EG_compute_edge_pairs_from_node_pairs
               EG_evaluatX(face_edge[i_src_edge], &half_t_src, xyz_src);
               EG_evaluatX(face_edge[i_tgt_edge], &half_t_tgt, xyz_tgt);
 
-              double xyz_src_periodize[3] = {xyz_src[0], xyz_src[1], xyz_src[2]};
+              double xyz_src_periodize[3];
               xyz_src_periodize[0] = hm[0]*xyz_src[0] + hm[1]*xyz_src[1] + hm[ 2]*xyz_src[2] + hm[ 3]*1.;
               xyz_src_periodize[1] = hm[4]*xyz_src[0] + hm[5]*xyz_src[1] + hm[ 6]*xyz_src[2] + hm[ 7]*1.;
               xyz_src_periodize[2] = hm[8]*xyz_src[0] + hm[9]*xyz_src[1] + hm[10]*xyz_src[2] + hm[11]*1.;
 
               // > Compare coordinates
               int add_pt_match = 0;
-              if (fabs(xyz_src_periodize[0]-xyz_tgt[0])<PERIO_TOL*diag &&
-                  fabs(xyz_src_periodize[1]-xyz_tgt[1])<PERIO_TOL*diag &&
-                  fabs(xyz_src_periodize[2]-xyz_tgt[2])<PERIO_TOL*diag) {
+              if (_euclidian_distance(xyz_src_periodize, xyz_tgt)<PERIO_TOL*diag) {
                 add_pt_match = 1;
               }
               int pairs[2] = {EG_indexBodyTopo(object, face_edge[i_src_edge]),
                               EG_indexBodyTopo(object, face_edge[i_tgt_edge])};
               int i_rewrite_pair = i_write_pair-1;
-              if (add_pt_match==1 && _unexisting_pair(i_write_pair, edge_pairs, pairs)) {
+              if (add_pt_match==1) {
                 edge_pair_found ++;
                 if (match[0]==0 && match[1]==1) {
-                  edge_pairs_sign[i_rewrite_pair] = 1;
+                  edge_pairs[2*i_rewrite_pair  ] = pairs[0];
+                  edge_pairs[2*i_rewrite_pair+1] = pairs[1];
                 }
                 else if (match[0]==1 && match[1]==0) {
-                  edge_pairs_sign[i_rewrite_pair] = -1;
+                  edge_pairs[2*i_rewrite_pair  ] = pairs[0];
+                  edge_pairs[2*i_rewrite_pair+1] =-pairs[1];
                 }
-                edge_pairs[2*i_rewrite_pair  ] = pairs[0];
-                edge_pairs[2*i_rewrite_pair+1] = pairs[1];
               }
             }
           }
@@ -12229,6 +12373,22 @@ EG_compute_edge_pairs_from_node_pairs
 
         }
       }
+    }
+
+    /**
+     * Unique signed pairs and then extact sign
+     */
+    int n_unique = unique_strided_array(
+      &edge_pairs[edge_pairs_idx[i_itrf]],
+      edge_pairs_idx[i_itrf+1]-edge_pairs_idx[i_itrf],
+      2
+    );
+    edge_pairs_idx[i_itrf+1] = edge_pairs_idx[i_itrf] + n_unique;
+
+    for (int i_unique=0; i_unique<n_unique; ++i_unique) {
+      int pos = edge_pairs_idx[i_itrf] + i_unique;
+      edge_pairs_sign[  pos  ] =    (edge_pairs[2*pos+1] > 0) ? 1 : -1;
+      edge_pairs     [2*pos+1] = abs(edge_pairs[2*pos+1]);
     }
   }
 
@@ -12244,6 +12404,24 @@ EG_compute_edge_pairs_from_node_pairs
 }
 
 
+/**
+ * Periodize a model with periodic matching patches information.
+ *
+ * Note: Periodic matches information must be described at face for 3D models
+ * and at edge for 2D models
+ *
+ * Args:
+ *   dim                : Dimension (2 or 3) of given model
+ *   context            : EGADS context
+ *   model              : model to duplicate and periodize
+ *   n_pairs            : number of matching patches
+ *   pairs              : interweaved matching patches (size = 2*n_pairs)
+ *   hmatrix            : homogeneous matrix of periodic transformation
+ *   patch_to_patch     : model entities-> periodized model entities table
+ *   patch_to_per_patch : model entities-> periodized entities table
+ *   out_model          : periodized model
+ *
+ */
 int
 EG_periodize_model
 (
@@ -12267,7 +12445,7 @@ EG_periodize_model
   }
 
   /**
-   * Create EGADS transform object from homogeneous mattix
+   * Create EGADS transform object from homogeneous matrix
    */
   egObject *eg_transform;
   stat = EG_makeTransform(context, hmatrix, &eg_transform);
@@ -12291,7 +12469,7 @@ EG_periodize_model
   EG_getBodyTopos(bodies[0], NULL, FACE , &nface , &faces );
   EG_getBodyTopos(bodies[0], NULL, SHELL, &nshell, &shells);
   if (nbody!=1) {
-    printf("CAD with multiple bodies aren't managed yet");
+    printf("%s:%s: CAD with multiple bodies aren't managed yet", __FILE__, __func__);
     exit(EXIT_FAILURE);
   }
   EG_free(nodes);
@@ -12302,8 +12480,8 @@ EG_periodize_model
 
 
   /**
-   * From CAD model and user leading dimension matching patch pairs
-   * deduce other dimensions matching patch pairs with relative orientation
+   * Deduce the matching pairs of entities for lower dimensions
+   * from the pairs provided by the user for the leading dimension
    */
   int pairs_idx[2] = {0, n_pairs};
 
@@ -12521,7 +12699,8 @@ EG_periodize_model
 
 
   /**
-   * Once body is created number have been attributed to entities, so we can create matching table
+   * Once the body has been created, an ID has been attributed
+   * to each entity so we can create the matching tables
    */
   for (int inode=0; inode<nnode; ++inode) {
     int ind_node_src = EG_indexBodyTopo(per_body, new_nodes       [inode]);
