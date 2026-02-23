@@ -12282,7 +12282,7 @@ EG_compute_edge_pairs_from_node_pairs
             int pairs[2] = {EG_indexBodyTopo(object, face_edge[i_src_edge]),
                             EG_indexBodyTopo(object, face_edge[i_tgt_edge])};
             edge_pair_found ++;
-            if (edge_pair_found==1) {
+            if (edge_pair_found==1) { // For now, we take only the first edge
               if (match[0]==0 && match[1]==1) {
                 edge_pairs[2*i_write_pair  ] = pairs[0];
                 edge_pairs[2*i_write_pair+1] = pairs[1];
@@ -12304,7 +12304,6 @@ EG_compute_edge_pairs_from_node_pairs
         else if (edge_pair_found>1) {
           // Note : If edge has multiple edges having 2 same pair points (exemple circle splitted in 2 arcs)
           //        try with another point at t = 0.5*(t1+t2)
-          printf("EGADS Error: Edge %d has multiple pair\n", EG_indexBodyTopo(object, face_edge[i_src_edge]));
 
           edge_pair_found = 0;
           for (int i_tgt_edge=face_edge_idx[tgt]; i_tgt_edge<face_edge_idx[tgt+1]; ++i_tgt_edge) {
@@ -12334,8 +12333,8 @@ EG_compute_edge_pairs_from_node_pairs
               double half_t_src = 0.5*(limits_src[0]+limits_src[1]);
               double half_t_tgt = 0.5*(limits_tgt[0]+limits_tgt[1]);
 
-              double xyz_src[3];
-              double xyz_tgt[3];
+              double xyz_src[9];
+              double xyz_tgt[9];
               EG_evaluatX(face_edge[i_src_edge], &half_t_src, xyz_src);
               EG_evaluatX(face_edge[i_tgt_edge], &half_t_tgt, xyz_tgt);
 
