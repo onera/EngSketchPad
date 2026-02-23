@@ -857,16 +857,26 @@ EG_deleteObject(egObject *object)
         if (obj->oclass == TESSELLATION) {
           tess = (egTessel *) obj->blind;
           if ((tess != NULL) && (obj->topObj == context)) {
-            for (i = 0; i < nbody; i++)
-              if (tess->src == bodies[i]) break;
-            if (i != nbody) cnt++;
+            for (i = 0; i < nbody; i++) {
+              if (tess->src == bodies[i]) {
+                break;
+              }
+            }
+            if (i != nbody) {
+              cnt++;
+            }
           }
         } else if (obj->oclass == EBODY) {
           ebody = (egEBody *) obj->blind;
           if ((ebody != NULL) && (obj->topObj == context)) {
-            for (i = 0; i < nbody; i++)
-              if (ebody->ref == bodies[i]) break;
-            if (i != nbody) cnt++;
+            for (i = 0; i < nbody; i++) {
+              if (ebody->ref == bodies[i]) {
+                break;
+              }
+            }
+            if (i != nbody) {
+              cnt++;
+            }
           }
         }
         obj = next;
