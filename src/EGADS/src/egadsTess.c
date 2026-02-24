@@ -6928,7 +6928,7 @@ EG_makePeriodicTessBody
   int       *node_pairs      = NULL;
   int       *face_edge_idx   = NULL;
   egObject **face_edge       = NULL;
-#ifndef LITE // petit mot (demander a bastien)
+#ifndef LITE
   if (dim==2) {
     EG_compute_edge_sign_and_node_pairs_from_edge_pairs(
       object,
