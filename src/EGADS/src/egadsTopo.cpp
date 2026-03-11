@@ -286,9 +286,9 @@ _apply_homogeneous_matrix
 )
 {
   // TODO: lapack as in PDM ?
-  out_xyz[0] = hmatrix[0]*xyz[0] + hmatrix[1]*xyz[1] + hmatrix[ 2]*xyz[2] + hmatrix[ 3]*1.;
-  out_xyz[1] = hmatrix[4]*xyz[0] + hmatrix[5]*xyz[1] + hmatrix[ 6]*xyz[2] + hmatrix[ 7]*1.;
-  out_xyz[2] = hmatrix[8]*xyz[0] + hmatrix[9]*xyz[1] + hmatrix[10]*xyz[2] + hmatrix[11]*1.;
+  out_xyz[0] = hmatrix[0]*xyz[0] + hmatrix[1]*xyz[1] + hmatrix[ 2]*xyz[2] + hmatrix[ 3];
+  out_xyz[1] = hmatrix[4]*xyz[0] + hmatrix[5]*xyz[1] + hmatrix[ 6]*xyz[2] + hmatrix[ 7];
+  out_xyz[2] = hmatrix[8]*xyz[0] + hmatrix[9]*xyz[1] + hmatrix[10]*xyz[2] + hmatrix[11];
 }
 
 
@@ -433,7 +433,7 @@ _store_face_nodes
 static int g_stride;
 
 static int
-cmp_strided
+_cmp_strided
 (
   const void *a,
   const void *b
@@ -451,7 +451,7 @@ cmp_strided
 
 
 static int
-unique_strided_array
+_unique_strided_array
 (
   int *array,
   int size,
@@ -462,7 +462,7 @@ unique_strided_array
 
   g_stride = stride;
 
-  qsort(array, size, stride * sizeof(int), cmp_strided);
+  qsort(array, size, stride * sizeof(int), _cmp_strided);
 
   int write = 1;
 
@@ -549,11 +549,7 @@ _duplicate_and_periodize_nodes
 
     if (node_matching[ind_node-1]==0) { // not a periodic node, create new one applying transfo
       double new_xyz[3];
-      _apply_homogeneous_matrix(
-        hmatrix,
-        xyz,
-        new_xyz
-      );
+      _apply_homogeneous_matrix(hmatrix, xyz, new_xyz);
 
       EG_makeTopology(context, NULL, NODE, 0, new_xyz, 0, NULL, NULL, &new_nodes[nnew_node]);
       node_to_per_node[ind_node-1] = new_nodes[nnew_node];
@@ -11925,9 +11921,7 @@ EG_compute_node_pairs_from_face_pairs
         EG_getTopology(src_face_vertices[i_node_src], &geom, &oclass, &mtype, xyz_src,
                       &ndum, &dum, &senses);
         double xyz_src_periodize[3];
-        xyz_src_periodize[0] = hm[0]*xyz_src[0] + hm[1]*xyz_src[1] + hm[ 2]*xyz_src[2] + hm[ 3]*1.;
-        xyz_src_periodize[1] = hm[4]*xyz_src[0] + hm[5]*xyz_src[1] + hm[ 6]*xyz_src[2] + hm[ 7]*1.;
-        xyz_src_periodize[2] = hm[8]*xyz_src[0] + hm[9]*xyz_src[1] + hm[10]*xyz_src[2] + hm[11]*1.;
+        _apply_homogeneous_matrix(hm, xyz_src, xyz_src_periodize);
 
         int ind_node_src = EG_indexBodyTopo(object, src_face_vertices[i_node_src]);
 
@@ -11958,7 +11952,7 @@ EG_compute_node_pairs_from_face_pairs
       EG_free(tgt_face_vertices);
     }
 
-    int n_unique = unique_strided_array(
+    int n_unique = _unique_strided_array(
       &node_pairs[node_pairs_idx[i_itrf]],
       node_pairs_idx[i_itrf+1]-node_pairs_idx[i_itrf],
       2
@@ -12339,9 +12333,7 @@ EG_compute_edge_pairs_from_node_pairs
               EG_evaluatX(face_edge[i_tgt_edge], &half_t_tgt, xyz_tgt);
 
               double xyz_src_periodize[3];
-              xyz_src_periodize[0] = hm[0]*xyz_src[0] + hm[1]*xyz_src[1] + hm[ 2]*xyz_src[2] + hm[ 3]*1.;
-              xyz_src_periodize[1] = hm[4]*xyz_src[0] + hm[5]*xyz_src[1] + hm[ 6]*xyz_src[2] + hm[ 7]*1.;
-              xyz_src_periodize[2] = hm[8]*xyz_src[0] + hm[9]*xyz_src[1] + hm[10]*xyz_src[2] + hm[11]*1.;
+              _apply_homogeneous_matrix(hm, xyz_src, xyz_src_periodize);
 
               // > Compare coordinates
               int add_pt_match = 0;
@@ -12377,7 +12369,7 @@ EG_compute_edge_pairs_from_node_pairs
     /**
      * Unique signed pairs and then extact sign
      */
-    int n_unique = unique_strided_array(
+    int n_unique = _unique_strided_array(
       &edge_pairs[edge_pairs_idx[i_itrf]],
       edge_pairs_idx[i_itrf+1]-edge_pairs_idx[i_itrf],
       2
@@ -12700,6 +12692,9 @@ EG_periodize_model
   /**
    * Once the body has been created, an ID has been attributed
    * to each entity so we can create the matching tables
+   *
+   * Note: relies on the hypothesis that internal body objects has the same
+   * index that the construction ones
    */
   for (int inode=0; inode<nnode; ++inode) {
     int ind_node_src = EG_indexBodyTopo(per_body, new_nodes       [inode]);
