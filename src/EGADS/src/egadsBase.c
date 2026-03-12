@@ -857,16 +857,26 @@ EG_deleteObject(egObject *object)
         if (obj->oclass == TESSELLATION) {
           tess = (egTessel *) obj->blind;
           if ((tess != NULL) && (obj->topObj == context)) {
-            for (i = 0; i < nbody; i++)
-              if (tess->src == bodies[i]) break;
-            if (i != nbody) cnt++;
+            for (i = 0; i < nbody; i++) {
+              if (tess->src == bodies[i]) {
+                break;
+              }
+            }
+            if (i != nbody) {
+              cnt++;
+            }
           }
         } else if (obj->oclass == EBODY) {
           ebody = (egEBody *) obj->blind;
           if ((ebody != NULL) && (obj->topObj == context)) {
-            for (i = 0; i < nbody; i++)
-              if (ebody->ref == bodies[i]) break;
-            if (i != nbody) cnt++;
+            for (i = 0; i < nbody; i++) {
+              if (ebody->ref == bodies[i]) {
+                break;
+              }
+            }
+            if (i != nbody) {
+              cnt++;
+            }
           }
         }
         obj = next;
@@ -937,10 +947,12 @@ EG_deleteObject(egObject *object)
         if (cntx->mutex != NULL) EMP_LockRelease(cntx->mutex);
         return cnt;
       }
-      for (i = nbody-1; i >= 0; i--)
+      for (i = nbody-1; i >= 0; i--) {
         if ((bodies[i]->oclass == TESSELLATION) ||
-            (bodies[i]->oclass == EBODY))
+            (bodies[i]->oclass == EBODY)) {
           EG_dereferenceObject(bodies[i], object);
+        }
+      }
     }
 
     stat = EG_dereferenceObject(object, context);
@@ -1181,7 +1193,7 @@ EG_copyTess(const egObject *object, /*@null@*/ void *ptr, egObject **copy)
   egObject     *tobj, *sobj, *ref;
   egObject     **nodes, **objs;
   egTessel     *btess, *ctess;
-  
+
   outLevel = EG_outLevel(object);
 
   btess = (egTessel *) object->blind;
@@ -1567,7 +1579,7 @@ EG_contextCopy(egObject *context, const egObject *object, egObject **copy)
   if (object == NULL)                return EGADS_NULLOBJ;
   if (object->magicnumber != MAGIC)  return EGADS_NOTOBJ;
   if (!EG_sameThread(object))        return EGADS_CNTXTHRD;
-  
+
   if (object->oclass == TESSELLATION) {
     if (context->oclass != BODY)     return EGADS_NOTBODY;
     return EG_copyTess(object, context, copy);
@@ -1576,13 +1588,13 @@ EG_contextCopy(egObject *context, const egObject *object, egObject **copy)
   if (context->oclass != CONTXT)     return EGADS_NOTCNTX;
   if ((object->oclass < CURVE) ||
       (object->oclass > MODEL))      return EGADS_CONSTERR;
-  
+
   if (object->oclass <= SURFACE) {
     stat = EG_copyGeometry(context, object, NULL, &obj);
   } else {
     stat = EG_copyTopology(context, object, NULL, &obj);
   }
-  
+
   if (obj != NULL) {
     stat  = EG_attributeXDup(object, NULL, obj);
     *copy = obj;
@@ -2161,4 +2173,3 @@ EG_getUserPointer(const egObject *context, void **ptr)
 
   return EGADS_SUCCESS;
 }
-
