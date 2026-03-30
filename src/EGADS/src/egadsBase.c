@@ -12,7 +12,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#if !defined(WIN32) && !defined(__CYGWIN__)
+#if !defined(WIN32) && !defined(__CYGWIN__) && defined(__GLIBC__)
 #define LONG long
 #include <execinfo.h>
 #else
@@ -79,7 +79,7 @@
 static void
 EG_traceback()
 {
-#if !defined(WIN32) && !defined(__CYGWIN__)
+#if !defined(WIN32) && !defined(__CYGWIN__) && defined(__GLIBC__)
   int    i;
   void   *array[100];
   size_t size;
