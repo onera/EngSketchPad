@@ -1025,6 +1025,18 @@ _periodize_surface_tesselation
   EG_free(faces);
 }
 
+__HOST_AND_DEVICE__ double
+EG_periodic_paramt_interpolation(double t0_src, double t1_src, double t0_tgt, double t1_tgt, double t_src)
+{
+  return (_periodic_paramt_interpolation(t0_src, t1_src, t0_tgt, t1_tgt, t_src));
+}
+
+__HOST_AND_DEVICE__ void
+EG_periodic_paramuv_interpolation(double uv0_src[2], double uv1_src[2], double uv0_tgt[2], double uv1_tgt[2], double uv_src[2], double uv_tgt[2])
+{
+  uv_tgt[0] = _periodic_paramt_interpolation(uv0_src[0], uv1_src[0], uv0_tgt[0], uv1_tgt[0], uv_src[0]);
+  uv_tgt[1] = _periodic_paramt_interpolation(uv0_src[1], uv1_src[1], uv0_tgt[1], uv1_tgt[1], uv_src[1]);
+}
 
 __HOST_AND_DEVICE__ static int
 EG_attrRet3R(const egObject *obj, const char *name, double *vals)
