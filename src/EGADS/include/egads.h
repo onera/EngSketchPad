@@ -285,9 +285,7 @@ __ProtoExt__ int  EG_loadTess( ego body, const char *name, ego *tess );
 
 __ProtoExt__ int  EG_tessMassProps( const ego tess, double *props );
 
-__ProtoExt__ double EG_periodic_paramt_interpolation( double t0_src, double t1_src, double t0_tgt, double t1_tgt, double t_src);
-
-__ProtoExt__ void EG_periodic_paramuv_interpolation( double uv0_src[2], double uv1_src[2], double uv0_tgt[2], double uv1_tgt[2], double uv_src[2], double uv_tgt[2]);
+__ProtoExt__ int EG_periodic_paramtuv_interpolation( int dim, const double *tuv0_src, const double *tuv1_src, const double *tuv0_tgt, const double *tuv1_tgt, const double *tuv_src, double *tuv_tgt);
 
 /* top down build functions */
 
