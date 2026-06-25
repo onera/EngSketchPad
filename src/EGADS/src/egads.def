@@ -132,8 +132,7 @@ EG_makeTessGeom
 EG_getTessGeom
 EG_makeTessBody
 EG_makePeriodicTessBody
-EG_periodic_paramt_interpolation
-EG_periodic_paramuv_interpolation
+EG_periodic_paramtuv_interpolation
 EG_remakeTess
 EG_finishTess
 EG_mapTessBody
