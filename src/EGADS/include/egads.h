@@ -285,6 +285,8 @@ __ProtoExt__ int  EG_loadTess( ego body, const char *name, ego *tess );
 
 __ProtoExt__ int  EG_tessMassProps( const ego tess, double *props );
 
+__ProtoExt__ int EG_periodic_paramtuv_interpolation( int dim, const double *tuv0_src, const double *tuv1_src, const double *tuv0_tgt, const double *tuv1_tgt, const double *tuv_src, double *tuv_tgt);
+
 /* top down build functions */
 
 __ProtoExt__ int  EG_fuseSheets( const ego src, const ego tool, ego *sheet );
