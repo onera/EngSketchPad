@@ -2609,7 +2609,7 @@ EG_getBodyUnits(const egObject *model, int nBody, const egObject **bodies,
     stat = EG_attributeRet(bodies[i], ".lengthUnits", &aType, &aLen, &ints,
                            &reals, &str);
     if (stat == EGADS_SUCCESS)
-      if (aType == ATTRSTRING)
+      if (aType == ATTRSTRING) {
         if (*units == NULL) {
           *units = str;
         } else {
@@ -2619,6 +2619,7 @@ EG_getBodyUnits(const egObject *model, int nBody, const egObject **bodies,
             return;
           }
         }
+      }
   }
 
 }
