@@ -1604,12 +1604,13 @@ EG_getSecNodes(int outLevel, int inode, ego sec, int nstripe, int isec,
   if (uclosed == 0) {
     /* set the last node if open */
     nodes[nstripe*inode] = NULL;
-    if (node != NULL)
+    if (node != NULL) {
       if (sense == SFORWARD || mtype == ONENODE) {
         nodes[nstripe*inode] = node[1];
       } else {
         nodes[nstripe*inode] = node[0];
       }
+    }
   }
 
 cleanup:

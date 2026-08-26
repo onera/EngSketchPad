@@ -3295,21 +3295,23 @@ EG_inFaceX(const egObject *face, const double *uva, /*@null@*/ double *pt,
   /* is uv in range? */
   if ((sper&1) != 0) {
     period = srange[1] - srange[0];
-    if ((uv[0]+utol < pface->urange[0]) || (uv[0]-utol > pface->urange[1]))
+    if ((uv[0]+utol < pface->urange[0]) || (uv[0]-utol > pface->urange[1])) {
       if (uv[0]+utol < pface->urange[0]) {
         while (uv[0]+period-utol < pface->urange[1]) uv[0] += period;
       } else {
         while (uv[0]-period+utol > pface->urange[0]) uv[0] -= period;
       }
+    }
   }
   if ((sper&2) != 0) {
     period = srange[3] - srange[2];
-    if ((uv[1]+vtol < pface->vrange[0]) || (uv[1]-vtol > pface->vrange[1]))
+    if ((uv[1]+vtol < pface->vrange[0]) || (uv[1]-vtol > pface->vrange[1])) {
       if (uv[1]+vtol < pface->vrange[0]) {
         while (uv[1]+period-vtol < pface->vrange[1]) uv[1] += period;
       } else {
         while (uv[1]-period+vtol > pface->vrange[0]) uv[1] -= period;
       }
+    }
   }
   if (pt == NULL) {
     if (uv[0]+utol < pface->urange[0]) return EGADS_OUTSIDE;

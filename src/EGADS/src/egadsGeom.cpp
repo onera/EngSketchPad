@@ -287,12 +287,13 @@ EG_destroyGeometry(egObject *geom)
       if (ppcurv->data_dot != NULL) EG_free(ppcurv->data_dot);
       obj = ppcurv->ref;
     }
-    if (obj    != NULL)
+    if (obj    != NULL) {
       if (ppcurv->topFlg == 0) {
         EG_dereferenceObject(obj, geom);
       } else {
         EG_dereferenceTopObj(obj, geom);
       }
+    }
     if (ppcurv != NULL) delete ppcurv;
 
   } else if (geom->oclass == CURVE) {
@@ -304,12 +305,13 @@ EG_destroyGeometry(egObject *geom)
       if (pcurve->data_dot != NULL) EG_free(pcurve->data_dot);
       obj = pcurve->ref;
     }
-    if (obj    != NULL)
+    if (obj    != NULL) {
       if (pcurve->topFlg == 0) {
         EG_dereferenceObject(obj, geom);
       } else {
         EG_dereferenceTopObj(obj, geom);
       }
+    }
     if (pcurve != NULL) delete pcurve;
 
   } else {
@@ -321,12 +323,13 @@ EG_destroyGeometry(egObject *geom)
       if (psurf->data_dot != NULL) EG_free(psurf->data_dot);
       obj = psurf->ref;
     }
-    if (obj   != NULL)
+    if (obj   != NULL) {
       if (psurf->topFlg == 0) {
         EG_dereferenceObject(obj, geom);
       } else {
         EG_dereferenceTopObj(obj, geom);
       }
+    }
     if (psurf != NULL) delete psurf;
 
   }
@@ -2599,6 +2602,7 @@ public:
     return sqrt(x * x + y * y + z * z);
   }
 
+  egXYZ(const egXYZ& Other) = default;
   egXYZ& operator= (const egXYZ& Other)
   {
     x = Other.x;
@@ -6920,22 +6924,24 @@ EG_invEvalClip(const egObject *geom, double *xyz, double *param, double *result)
   if ((per&1) != 0) {
     period = srange[1] - srange[0];
     if ((param[0]+PARAMACC < pface->urange[0]) ||
-        (param[0]-PARAMACC > pface->urange[1]))
+        (param[0]-PARAMACC > pface->urange[1])) {
       if (param[0]+PARAMACC < pface->urange[0]) {
         if (param[0]+period-PARAMACC < pface->urange[1]) param[0] += period;
       } else {
         if (param[0]-period+PARAMACC > pface->urange[0]) param[0] -= period;
       }
+    }
   }
   if ((per&2) != 0) {
     period = srange[3] - srange[2];
     if ((param[1]+PARAMACC < pface->vrange[0]) ||
-        (param[1]-PARAMACC > pface->vrange[1]))
+        (param[1]-PARAMACC > pface->vrange[1])) {
       if (param[1]+PARAMACC < pface->vrange[0]) {
         if (param[1]+period-PARAMACC < pface->vrange[1]) param[1] += period;
       } else {
         if (param[1]-period+PARAMACC > pface->vrange[0]) param[1] -= period;
       }
+    }
   }
 
   return EGADS_SUCCESS;
@@ -7027,7 +7033,7 @@ EG_invEvaluatX(const egObject *geom, double *xyz, double *param, double *result)
       printf(" EGADS Warning: getRange = %d (EG_invEvaluate)!\n", stat);
     return stat;
   }
-  if (our == 1)
+  if (our == 1) {
     if (ref->oclass == PCURVE) {
       return EG_invEvaGeomLimits(ref, NULL,  xyz, param, 0.0, result);
     } else if (geom->oclass == FACE) {
@@ -7037,6 +7043,7 @@ EG_invEvaluatX(const egObject *geom, double *xyz, double *param, double *result)
     } else {
       return EG_invEvaGeomLimits(ref, range, xyz, param, tol, result);
     }
+  }
 
   if (geom->oclass == PCURVE) {
 
@@ -7057,12 +7064,13 @@ EG_invEvaluatX(const egObject *geom, double *xyz, double *param, double *result)
     if (hCurve->IsPeriodic()) {
       period = hCurve->Period();
       if ((t+PARAMACC < range[0]) || (t-PARAMACC > range[1]))
-        if (period != 0.0)
+        if (period != 0.0) {
           if (t+PARAMACC < range[0]) {
             if (t+period-PARAMACC < range[1]) t += period;
           } else {
             if (t-period+PARAMACC > range[0]) t -= period;
           }
+        }
     }
     result[0] = pnt.X();
     result[1] = pnt.Y();
@@ -7105,17 +7113,18 @@ EG_invEvaluatX(const egObject *geom, double *xyz, double *param, double *result)
     if (hCurve->IsPeriodic()) {
       period = hCurve->Period();
       if ((t+PARAMACC < srange[0]) || (t-PARAMACC > srange[1])) {
-        if (period != 0.0)
+        if (period != 0.0) {
           if (t+PARAMACC < srange[0]) {
             if (t+period-PARAMACC < srange[1]) t += period;
           } else {
             if (t-period+PARAMACC > srange[0]) t -= period;
           }
+        }
       }
     }
 
     /* clip it? */
-    if (geom->oclass == EDGE)
+    if (geom->oclass == EDGE) {
       if ((t < range[0]) || (t > range[1])) {
 /*      if (t < range[0]) t = range[0];
         if (t > range[1]) t = range[1];
@@ -7125,6 +7134,7 @@ EG_invEvaluatX(const egObject *geom, double *xyz, double *param, double *result)
         pnt.SetY(result[1]);
         pnt.SetZ(result[2]);
       }
+    }
 
     result[0] = pnt.X();
     result[1] = pnt.Y();
@@ -7199,23 +7209,25 @@ EG_invEvaluatX(const egObject *geom, double *xyz, double *param, double *result)
     if (hSurface->IsUPeriodic()) {
       period = hSurface->UPeriod();
       if ((u+PARAMACC < srange[0]) || (u-PARAMACC > srange[1])) {
-        if (period != 0.0)
+        if (period != 0.0) {
           if (u+PARAMACC < srange[0]) {
             if (u+period-PARAMACC < srange[1]) u += period;
           } else {
             if (u-period+PARAMACC > srange[0]) u -= period;
           }
+        }
       }
     }
     if (hSurface->IsVPeriodic()) {
       period = hSurface->VPeriod();
       if ((v+PARAMACC < srange[2]) || (v-PARAMACC > srange[3])) {
-        if (period != 0.0)
+        if (period != 0.0) {
           if (v+PARAMACC < srange[2]) {
             if (v+period-PARAMACC < srange[3]) v += period;
           } else {
             if (v-period+PARAMACC > srange[2]) v -= period;
           }
+        }
       }
     }
 

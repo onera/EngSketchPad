@@ -160,12 +160,13 @@ EG_copyAttrTopo(egadsBody *pbody, /*@null@*/ double *xform, gp_Trsf form,
     if (Wire.Closed()) closed = 1;
     // more reliable for checking closure of Wires
     TopExp::Vertices(Wire, V1, V2);
-    if (!V1.IsNull() && !V2.IsNull())
+    if (!V1.IsNull() && !V2.IsNull()) {
       if (V1.IsSame(V2)) {
         closed = 1;
       } else {
         closed = 0;
       }
+    }
     if ((ploop->surface == NULL) && (dst == topObj))
       if (sloop->surface != NULL) {
         // top of the hierarchy -- use surface from source and transform
@@ -912,12 +913,13 @@ EG_flipAttrTopo(egadsBody *pbody, egadsBody *tbody, const egObject *src,
     if (Wire.Closed()) closed = 1;
     // more reliable for checking closure of Wires
     TopExp::Vertices(Wire, V1, V2);
-    if (!V1.IsNull() && !V2.IsNull())
+    if (!V1.IsNull() && !V2.IsNull()) {
       if (V1.IsSame(V2)) {
         closed = 1;
       } else {
         closed = 0;
       }
+    }
     if ((ploop->surface == NULL) && (dst == topObj)) {
       egadsLoop *sloop = (egadsLoop *) src->blind;
       if (sloop->surface != NULL) {

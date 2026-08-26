@@ -1849,7 +1849,7 @@ EG_modelBoolean(const egObject *src, const egObject *tool, int oper,
           TopTools_IndexedMapOfShape rmape;
           TopExp::MapShapes(result, TopAbs_EDGE, rmape);
           for (i = 0; i < rmape.Extent(); i++)
-            if (emap[i] > 0)
+            if (emap[i] > 0) {
               if (spltabe[emap[i]-1] == 0) {
                 if (outLevel > 1)
                   printf(" EGADS Warning: Mapping maybe lost for Edge %d!\n",
@@ -1859,6 +1859,7 @@ EG_modelBoolean(const egObject *src, const egObject *tool, int oper,
                 emap[i] = spltabe[emap[i]-1];
                 continue;
               }
+            }
           EG_free(spltabe);
         }
         // patch up the Face map
