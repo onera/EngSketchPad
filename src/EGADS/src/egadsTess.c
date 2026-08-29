@@ -1025,6 +1025,18 @@ _periodize_surface_tesselation
   EG_free(faces);
 }
 
+__HOST_AND_DEVICE__ int
+EG_periodic_paramtuv_interpolation(int dim, const double *tuv0_src, const double *tuv1_src, const double *tuv0_tgt, const double *tuv1_tgt, const double *tuv_src, double *tuv_tgt)
+{
+  if (dim > 2)
+    return EGADS_GEOMERR;
+
+  for (int i=0; i<dim; i++)
+  {
+    tuv_tgt[i] = _periodic_paramt_interpolation(tuv0_src[i], tuv1_src[i], tuv0_tgt[i], tuv1_tgt[i], tuv_src[i]);
+  }
+  return EGADS_SUCCESS;
+}
 
 __HOST_AND_DEVICE__ static int
 EG_attrRet3R(const egObject *obj, const char *name, double *vals)
