@@ -837,9 +837,10 @@ _duplicate_and_periodize_faces_and_loops
     if (debug_verbose==1) {
       printf("\n");
       printf(
-        "duplicate loop %d (ind_loop = %d):\n",
+        "duplicate loop %d (ind_loop = %d, loop = %p):\n",
         iloop,
-        ind_loop
+        ind_loop,
+        (void *) loops[iloop]
       );
     }
     egObject **new_loop_edges = (egObject **) EG_alloc(2 * loop_nedge * sizeof(egObject *));
@@ -847,9 +848,10 @@ _duplicate_and_periodize_faces_and_loops
       int ind_edge = EG_indexBodyTopo(bodies[0], loop_edges[iedge]);
       if (debug_verbose==1) {
         printf(
-          "  edge %d ind_edge = %d senses = %d\n",
+          "  edge %d ind_edge = %d edge = %p senses = %d\n",
           iedge,
           ind_edge,
+          (void *) loop_edges[iedge],
           loop_senses[iedge]
         );
       }
