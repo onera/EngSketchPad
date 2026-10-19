@@ -843,7 +843,8 @@ _duplicate_and_periodize_faces_and_loops
         (void *) loops[iloop]
       );
     }
-    egObject **new_loop_edges = (egObject **) EG_alloc(2 * loop_nedge * sizeof(egObject *));
+    egObject **new_loop_edges  = (egObject **) EG_alloc(2 * loop_nedge * sizeof(egObject *));
+    int       *new_loop_senses = (int       *) EG_alloc(2 * loop_nedge * sizeof(int       ));
     for (int iedge=0; iedge<loop_nedge; ++iedge) {
       int ind_edge = EG_indexBodyTopo(bodies[0], loop_edges[iedge]);
       if (debug_verbose==1) {
@@ -855,7 +856,8 @@ _duplicate_and_periodize_faces_and_loops
           loop_senses[iedge]
         );
       }
-      new_loop_edges[iedge] = new_edges[ind_edge-1];
+      new_loop_edges [iedge] = new_edges  [ind_edge-1];
+      new_loop_senses[iedge] = loop_senses[iedge];
 
       if (loop_geom != NULL && loop_geom->mtype!=PLANE) {
         if (debug_verbose==1) {
@@ -897,10 +899,11 @@ _duplicate_and_periodize_faces_and_loops
 
     int iface_geom = loop_face_geom[ind_loop-1];
     egObject *new_loop_face_geom = (loop_geom == NULL) ? NULL : new_faces_geom[iface_geom];
-    EG_makeTopology(context, new_loop_face_geom, oclass, mtype, loop_limits, loop_nedge, new_loop_edges, loop_senses, &new_loops[nnew_loop]);
+    EG_makeTopology(context, new_loop_face_geom, oclass, mtype, loop_limits, loop_nedge, new_loop_edges, new_loop_senses, &new_loops[nnew_loop]);
     nnew_loop++;
 
     EG_free(new_loop_edges);
+    EG_free(new_loop_senses);
   }
 
   for (int iloop=0; iloop<nloop; ++iloop) {
@@ -925,7 +928,8 @@ _duplicate_and_periodize_faces_and_loops
     int ind_face = loop_face[ind_loop-1];
     if (face_matching[ind_face-1]==0) { // loop not on a periodic face, create new loop applying transfo
 
-      egObject **new_loop_edges = (egObject **) EG_alloc(2 * loop_nedge * sizeof(egObject *));
+      egObject **new_loop_edges  = (egObject **) EG_alloc(2 * loop_nedge * sizeof(egObject *));
+      int       *new_loop_senses = (int       *) EG_alloc(2 * loop_nedge * sizeof(int       ));
       for (int iedge=0; iedge<loop_nedge; ++iedge) {
         int ind_edge = EG_indexBodyTopo(bodies[0], loop_edges[iedge]);
         if (debug_verbose==1) {
@@ -938,13 +942,14 @@ _duplicate_and_periodize_faces_and_loops
         }
 
         if (edge_matching[ind_edge-1]==0) { // a periodic edge have been created
-          new_loop_edges[iedge] = edge_to_per_edge[ind_edge-1];
+          new_loop_edges [iedge] = edge_to_per_edge[ind_edge-1];
+          new_loop_senses[iedge] = loop_senses[iedge];
         }
         else {
           int ind_match_edge      = abs(edge_matching[ind_edge-1]);
-          int ind_match_edge_sign = (edge_matching[ind_edge-1]>0) ? 1 : -1;
-          new_loop_edges[iedge]   = new_edges[ind_match_edge-1];
-          loop_senses[iedge]     *= ind_match_edge_sign;
+          int ind_match_edge_sign =    (edge_matching[ind_edge-1]>0) ? 1 : -1;
+          new_loop_edges [iedge]  = new_edges[ind_match_edge-1];
+          new_loop_senses[iedge]  = ind_match_edge_sign * loop_senses[iedge];
         }
 
         if (loop_geom != NULL && loop_geom->mtype!=PLANE) {
@@ -987,11 +992,12 @@ _duplicate_and_periodize_faces_and_loops
 
       int iface_geom = loop_face_geom[nloop+ind_loop-1];
       egObject *new_loop_face_geom = (loop_geom == NULL) ? NULL : new_faces_geom[iface_geom];
-      EG_makeTopology(context, new_loop_face_geom, oclass, mtype, loop_limits, loop_nedge, new_loop_edges, loop_senses, &new_loops[nnew_loop]);
+      EG_makeTopology(context, new_loop_face_geom, oclass, mtype, loop_limits, loop_nedge, new_loop_edges, new_loop_senses, &new_loops[nnew_loop]);
       loop_to_per_loop[ind_loop-1] = new_loops[nnew_loop];
       nnew_loop++;
 
       EG_free(new_loop_edges);
+      EG_free(new_loop_senses);
     }
 
   }
