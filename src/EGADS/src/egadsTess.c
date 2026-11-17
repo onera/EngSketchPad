@@ -756,6 +756,92 @@ _periodize_edge_tesselation
 }
 
 
+__HOST_AND_DEVICE__ int
+EG_orient_uv_param(egObject *object, int src, int tgt, int *face_edge_idx, egObject **face_edge, int n_pairs, int *pairs, int *pair_sign, int out_uv_sens[2])
+{
+
+  int uv_sens[2] = {1, 1};
+
+  int nface=0, nedge=0;
+  egObject **faces, **edges;
+
+  EG_getBodyTopos(object, NULL, FACE, &nface, &faces);
+  EG_getBodyTopos(object, NULL, EDGE, &nedge, &edges);
+
+  double tol;
+  EG_tolerance(faces[src], &tol);
+
+  for (int i_edge=face_edge_idx[src]; i_edge<face_edge_idx[src+1]; i_edge++)
+  {
+    int src_edge_idx = EG_indexBodyTopo(object, face_edge[i_edge]);
+    int tgt_edge_idx = 0;
+    int tgt_edge_sign;
+
+    _find_matching_pair(pairs,
+                        pair_sign,
+                        n_pairs,
+                        src_edge_idx,
+                        &tgt_edge_idx,
+                        &tgt_edge_sign);
+
+    int mtype, oclass;
+    egObject  *edge_geom;
+    int       *edge_senses;
+    int        edge_nnode;
+    egObject **edge_nodes;
+    double     src_edge_limits[2], tgt_edge_limits[2];
+    EG_getTopology(
+      edges[src_edge_idx-1],
+      &edge_geom,
+      &oclass,
+      &mtype,
+      src_edge_limits,
+      &edge_nnode,
+      &edge_nodes,
+      &edge_senses
+    );
+
+    EG_getTopology(
+      edges[tgt_edge_idx-1],
+      &edge_geom,
+      &oclass,
+      &mtype,
+      tgt_edge_limits,
+      &edge_nnode,
+      &edge_nodes,
+      &edge_senses
+    );
+
+    double src_uv[2], tgt_uv[2];
+    EG_getEdgeUV(faces[src], edges[src_edge_idx-1], 0, src_edge_limits[0]                                         , src_uv);
+    EG_getEdgeUV(faces[tgt], edges[tgt_edge_idx-1], 0, (tgt_edge_sign>0 ? tgt_edge_limits[0] : tgt_edge_limits[1]), tgt_uv);
+
+    if (fabs(src_uv[0] - tgt_uv[0]) > tol)  uv_sens[0] = -1;
+    if (fabs(src_uv[1] - tgt_uv[1]) > tol)  uv_sens[1] = -1;
+  }
+
+  out_uv_sens[0] = uv_sens[0];
+  out_uv_sens[1] = uv_sens[1];
+
+  return EGADS_SUCCESS;
+
+}
+
+
+__HOST_AND_DEVICE__ int
+EG_periodic_paramtuv_interpolation(int dim, const double *tuv0_src, const double *tuv1_src, const double *tuv0_tgt, const double *tuv1_tgt, const double *tuv_src, double *tuv_tgt)
+{
+  if (dim > 2)
+    return EGADS_GEOMERR;
+
+  for (int i=0; i<dim; i++)
+  {
+    tuv_tgt[i] = _periodic_paramt_interpolation(tuv0_src[i], tuv1_src[i], tuv0_tgt[i], tuv1_tgt[i], tuv_src[i]);
+  }
+  return EGADS_SUCCESS;
+}
+
+
 static void
 _periodize_surface_tesselation
 (
@@ -806,10 +892,61 @@ _periodize_surface_tesselation
         _print_tess2d_info(btess, tgt);
       }
 
-      int     old_ntris = btess->tess2d[tgt].ntris;
-      double *old_xyz   = btess->tess2d[tgt].xyz;
-      double *old_uv    = btess->tess2d[tgt].uv;
-      int    *old_tris  = btess->tess2d[tgt].tris;
+      int mtype, oclass;
+      egObject  *face_geom;
+      int       *face_senses;
+      int        face_nedge;
+      egObject **face_edges;
+      double     src_face_limits[4], tgt_face_limits[4];
+
+      EG_getTopology(
+        faces[src],
+        &face_geom,
+        &oclass,
+        &mtype,
+        src_face_limits,
+        &face_nedge,
+        &face_edges,
+        &face_senses
+      );
+
+      double uv0_src[2] = {src_face_limits[0], src_face_limits[2]};
+      double uv1_src[2] = {src_face_limits[1], src_face_limits[3]};
+
+      EG_getTopology(
+        faces[tgt],
+        &face_geom,
+        &oclass,
+        &mtype,
+        tgt_face_limits,
+        &face_nedge,
+        &face_edges,
+        &face_senses
+      );
+
+      double uv0_tgt[2] = {tgt_face_limits[0], tgt_face_limits[2]};
+      double uv1_tgt[2] = {tgt_face_limits[1], tgt_face_limits[3]};
+
+      int uv_sens[2];
+
+      EG_orient_uv_param(object,
+                         src,
+                         tgt,
+                         face_edge_idx,
+                         face_edge,
+                         edge_pairs_idx[i_itrf+1]-edge_pairs_idx[i_itrf],
+                         edge_pairs,
+                         edge_pairs_sign,
+                         uv_sens);
+
+      for (int i=0; i<2; i++){
+        if (uv_sens[i] != 1){
+          double tmp = uv0_tgt[i];
+          uv0_tgt[i] = uv1_tgt[i];
+          uv1_tgt[i] = tmp;
+        }
+      }
+
       EG_free(btess->tess2d[tgt].tric);
       EG_free(btess->tess2d[tgt].ptype);
       EG_free(btess->tess2d[tgt].pindex);
@@ -836,14 +973,13 @@ _periodize_surface_tesselation
         btess->tess2d[tgt].xyz[3*i_vtx+1] = hm[4]*x + hm[5]*y + hm[ 6]*z + hm[ 7]*1.;
         btess->tess2d[tgt].xyz[3*i_vtx+2] = hm[8]*x + hm[9]*y + hm[10]*z + hm[11]*1.;
 
-
-        // > Interpolate UV from previous one
-        _interpolate_uv_from_tess(&btess->tess2d[tgt].xyz[3*i_vtx],
-                                  old_ntris,
-                                  old_tris,
-                                  old_xyz,
-                                  old_uv,
-                                 &btess->tess2d[tgt].uv[2*i_vtx]);
+        EG_periodic_paramtuv_interpolation(2,
+                                           uv0_src,
+                                           uv1_src,
+                                           uv0_tgt,
+                                           uv1_tgt,
+                                           &btess->tess2d[src].uv[2*i_vtx],
+                                           &btess->tess2d[tgt].uv[2*i_vtx]);
 
         double new_coords[3];
         EG_invEvaluateGuess(faces[tgt],
@@ -990,11 +1126,6 @@ _periodize_surface_tesselation
         }
       }
 
-      EG_free(old_xyz);
-      EG_free(old_uv);
-      EG_free(old_tris);
-
-
       if (debug_verbose==1) {
         _print_tess2d_info(btess, src);
         _print_tess2d_info(btess, tgt);
@@ -1025,18 +1156,6 @@ _periodize_surface_tesselation
   EG_free(faces);
 }
 
-__HOST_AND_DEVICE__ int
-EG_periodic_paramtuv_interpolation(int dim, const double *tuv0_src, const double *tuv1_src, const double *tuv0_tgt, const double *tuv1_tgt, const double *tuv_src, double *tuv_tgt)
-{
-  if (dim > 2)
-    return EGADS_GEOMERR;
-
-  for (int i=0; i<dim; i++)
-  {
-    tuv_tgt[i] = _periodic_paramt_interpolation(tuv0_src[i], tuv1_src[i], tuv0_tgt[i], tuv1_tgt[i], tuv_src[i]);
-  }
-  return EGADS_SUCCESS;
-}
 
 __HOST_AND_DEVICE__ static int
 EG_attrRet3R(const egObject *obj, const char *name, double *vals)
