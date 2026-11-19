@@ -73,6 +73,7 @@ __PROTO_H_AND_D__ int  EG_getTopology( const egObject *topo, egObject **geom,
                                        int *oclas, int *type,
                                        /*@null@*/ double *limits, int *nChild,
                                        egObject ***children, int **senses );
+__PROTO_H_AND_D__ int  EG_getTopoLimits(const egObject *topo, double *limits);
 __PROTO_H_AND_D__ int  EG_getBodyTopos( const egObject *body,
                                         /*@null@*/ egObject *src, int oclass,
                                         int *ntopo,
@@ -133,6 +134,11 @@ EG_compute_edge_pairs_from_node_pairs(egObject *object, int n_itrf, int *face_pa
                                       double *homo_matrices, int *node_pairs_idx, int *node_pairs,
                                       int *face_edge_idx, egObject **face_edge,
                                       int **edge_pairs_idx_out, int **edge_pairs_out, int **edge_pairs_sign_out);
+__PROTO_H_AND_D__ int
+EG_orientUVparam(egObject *object, int src, int tgt,
+                 int *face_edge_idx, egObject **face_edge,
+                 int n_pairs, int *pairs, int *pairs_sign,
+                 int out_uv_sens[2]);
 
 #ifndef LITE
            extern int  EG_fullAttrs( const egObject *obj );
@@ -162,6 +168,10 @@ __PROTO_H_AND_D__ int  EG_mapSequen( egObject *src, egObject *dst,
                                      egObject **result );
 #endif
 
+__HOST_AND_DEVICE__ int EG_periodic_paramtuv_interpolation(int dim, const double *tuv0_src, const double *tuv1_src,
+                                                                    const double *tuv0_tgt, const double *tuv1_tgt,
+                                                                    const double *tuv_src,         double *tuv_tgt);
+
 
 static inline
 double
@@ -174,21 +184,6 @@ _DOT_PRODUCT
   return vect1[0] * vect2[0] +
          vect1[1] * vect2[1] +
          vect1[2] * vect2[2];
-}
-
-
-static inline
-double
-_periodic_paramt_interpolation
-(
-  double t0_src, double t1_src,
-  double t0_tgt, double t1_tgt,
-  double t_src
-)
-{
-  double s_src = (t_src-t0_src) / (t1_src-t0_src);
-  double t_tgt = s_src * (t1_tgt-t0_tgt) + t0_tgt;
-  return t_tgt;
 }
 
 
@@ -402,253 +397,6 @@ _find_matching_pair
 }
 
 
-static
-double
-_line_distance
-(
-  const double x[3],
-  const double p1[3],
-  const double p2[3],
-  double *t,
-  double closestPoint[3]
-)
-{
-
-  const double _tol_dist = 1e-5;
-
-  double p21[3], denom, num;
-  const double *closest;
-
-  /*
-   * Determine appropriate vectors
-   */
-
-  p21[0] = p2[0]- p1[0];
-  p21[1] = p2[1]- p1[1];
-  p21[2] = p2[2]- p1[2];
-
-  /*
-   *  Get parametric location
-   */
-
-  num = p21[0]*(x[0]-p1[0]) + p21[1]*(x[1]-p1[1]) + p21[2]*(x[2]-p1[2]);
-  denom = _DOT_PRODUCT(p21,p21);
-
-  double tolerance = fabs (_tol_dist * num);
-  if ( fabs(denom) < tolerance ) {
-    closest = p1;
-  }
-
-  /*
-   *  If parametric coordinate is within 0<=p<=1, then the point is closest to
-   *  the line.  Otherwise, it's closest to a point at the end of the line.
-   */
-
-  else if ( denom <= 0.0 || (*t=num/denom) < 0.0 ) {
-    closest = p1;
-  }
-
-  else if ( *t > 1.0 ) {
-    closest = p2;
-  }
-
-  else {
-    closest = p21;
-    p21[0] = p1[0] + (*t)*p21[0];
-    p21[1] = p1[1] + (*t)*p21[1];
-    p21[2] = p1[2] + (*t)*p21[2];
-  }
-
-  closestPoint[0] = closest[0];
-  closestPoint[1] = closest[1];
-  closestPoint[2] = closest[2];
-
-  double v[3] = {closest[0] - x[0],
-                 closest[1] - x[1],
-                 closest[2] - x[2]};
-
-  return  _DOT_PRODUCT(v,v);
-}
-
-
-static
-int
-_triangle_closest_point
-(
-  const double  x[3],
-  const double  v[9],
-  double       *closest_point,
-  double       *min_dist2,
-  double       *weights
-)
-{
-  const double *v0 = v;
-  const double *v1 = v + 3;
-  const double *v2 = v + 6;
-
-  double e1[3] = {v1[0] - v0[0],
-                  v1[1] - v0[1],
-                  v1[2] - v0[2]};
-  double e2[3] = {v2[0] - v0[0],
-                  v2[1] - v0[1],
-                  v2[2] - v0[2]};
-  double e[3]  = {x[0] - v0[0],
-                  x[1] - v0[1],
-                  x[2] - v0[2]};
-
-  double a = _DOT_PRODUCT(e1, e1);
-  double b = _DOT_PRODUCT(e1, e2);
-  double c = _DOT_PRODUCT(e2, e2);
-
-  double det = a*c - b*b;
-
-  if (det < 1e-14) {
-    return -1;
-  }
-
-  double r = _DOT_PRODUCT(e1, e);
-  double s = _DOT_PRODUCT(e2, e);
-
-
-  /* Solve for weights of orthogonal projection of point on triangle's plane */
-  double weights_local[3];
-  double *_weights = weights_local;
-  if (weights != NULL) {
-    _weights = weights;
-  }
-  _weights[1] = (r*c - s*b) / det;
-  _weights[2] = (s*a - r*b) / det;
-  _weights[0] = 1. - _weights[1] - _weights[2];
-
-  /* Projection inside triangle (= closest point) */
-  if ( _weights[0] >= 0.0 && _weights[0] <= 1.0 &&
-       _weights[1] >= 0.0 && _weights[1] <= 1.0 &&
-       _weights[2] >= 0.0 && _weights[2] <= 1.0 ) {
-
-    *min_dist2 = 0.;
-    for (int idim = 0; idim < 3; idim++) {
-      closest_point[idim] = v[idim] + _weights[1]*e1[idim] + _weights[2]*e2[idim];
-      double delta = x[idim] - closest_point[idim];
-      *min_dist2 += delta * delta;
-    }
-
-    return 1;
-  }
-
-  /* Projection inside triangle --> find closest point on triangle's boundary */
-  else {
-
-    double t01, t12, t20, d01, d12, d20, c01[3], c12[3], c20[3];
-
-    double t;
-    d01 = _line_distance(x, v0, v1, &t01, c01);
-    d12 = _line_distance(x, v1, v2, &t12, c12);
-    d20 = _line_distance(x, v2, v0, &t20, c20);
-
-    if (d01 <= d12 && d01 <= d20) {
-      *min_dist2 = d01;
-      t = t01;
-
-      closest_point[0] = c01[0];
-      closest_point[1] = c01[1];
-      closest_point[2] = c01[2];
-    }
-
-    else if (d12 <= d01 && d12 <= d20) {
-      *min_dist2 = d12;
-      t = t12;
-
-      closest_point[0] = c12[0];
-      closest_point[1] = c12[1];
-      closest_point[2] = c12[2];
-    }
-
-    else {
-      *min_dist2 = d20;
-      t = t20;
-
-      closest_point[0] = c20[0];
-      closest_point[1] = c20[1];
-      closest_point[2] = c20[2];
-    }
-
-    if (t < 0.) {
-      t = 0.;
-    } else if (t > 1.) {
-      t = 1.;
-    }
-
-    return 0;
-  }
-}
-
-
-static void
-_interpolate_uv_from_tess
-(
-  double  coord[3],
-  int     ntris,
-  int    *tri_vtx,
-  double *vtx_coord,
-  double *vtx_uv,
-  double  uv[2]
-)
-{
-  // TODO : optimize using walking location or BVH/octree structure
-
-  double weights   [3];
-  double min_dist2 = DBL_MAX;
-
-  int in_tri = -1;
-  for (int i_tri=0; i_tri<ntris; ++i_tri) {
-    double tri_coords[9];
-    for (int i_vtx=0; i_vtx<3; ++i_vtx) {
-      int vtx_id = tri_vtx[3*i_tri+i_vtx]-1;
-      for (int j=0; j<3; ++j) {
-        tri_coords[3*i_vtx+j] = vtx_coord[3*vtx_id+j];
-      }
-    }
-    double l_closest_pt[3];
-    double l_weights   [3];
-    double l_min_dist2;
-    int status = _triangle_closest_point(coord,
-                                         tri_coords,
-                                         l_closest_pt,
-                                        &l_min_dist2,
-                                         l_weights);
-    if (status==-1) {
-      printf("ERROR: Degenerate triangle\n");
-      exit(2);
-    }
-    else {
-      if (min_dist2>l_min_dist2) {
-        min_dist2 = l_min_dist2;
-        for (int j=0; j<3; ++j) {
-          weights[j] = l_weights[j];
-        }
-        in_tri = i_tri;
-      }
-    }
-  }
-
-  if (in_tri==-1) {
-    printf("ERROR:Unlocated point (%f %f %f)\n", coord[0], coord[1], coord[2]);
-    exit(2);
-  }
-
-  int i_vtx0 = tri_vtx[3*in_tri  ]-1;
-  int i_vtx1 = tri_vtx[3*in_tri+1]-1;
-  int i_vtx2 = tri_vtx[3*in_tri+2]-1;
-  uv[0] = weights[0]*vtx_uv[2*i_vtx0  ] +
-          weights[1]*vtx_uv[2*i_vtx1  ] +
-          weights[2]*vtx_uv[2*i_vtx2  ];
-  uv[1] = weights[0]*vtx_uv[2*i_vtx0+1] +
-          weights[1]*vtx_uv[2*i_vtx1+1] +
-          weights[2]*vtx_uv[2*i_vtx2+1];
-
-}
-
-
 static void
 _periodize_edge_tesselation
 (
@@ -709,9 +457,11 @@ _periodize_edge_tesselation
         btess->tess1d[tgt].xyz[3*tgt_i_vtx  ] = hm[0]*x + hm[1]*y + hm[ 2]*z + hm[ 3]*1.;
         btess->tess1d[tgt].xyz[3*tgt_i_vtx+1] = hm[4]*x + hm[5]*y + hm[ 6]*z + hm[ 7]*1.;
         btess->tess1d[tgt].xyz[3*tgt_i_vtx+2] = hm[8]*x + hm[9]*y + hm[10]*z + hm[11]*1.;
-        btess->tess1d[tgt].t  [  tgt_i_vtx  ] = _periodic_paramt_interpolation(t0_src, t1_src,
-                                                                               t0_tgt, t1_tgt,
-                                                                               btess->tess1d[src].t[i_vtx]);
+
+        EG_periodic_paramtuv_interpolation(1, &t0_src, &t1_src,
+                                              &t0_tgt, &t1_tgt,
+                                              &btess->tess1d[src].t[i_vtx],
+                                              &btess->tess1d[tgt].t[tgt_i_vtx]);
 
         // > Here coord is exact and t approximate, so we try to fix t but we do not update coords (maybe its an ISSUE ??)
         double dummy_new_coords[3];
@@ -753,92 +503,6 @@ _periodize_edge_tesselation
       }
     }
   }
-}
-
-
-__HOST_AND_DEVICE__ int
-EG_orient_uv_param(egObject *object, int src, int tgt, int *face_edge_idx, egObject **face_edge, int n_pairs, int *pairs, int *pair_sign, int out_uv_sens[2])
-{
-
-  int uv_sens[2] = {1, 1};
-
-  int nface=0, nedge=0;
-  egObject **faces, **edges;
-
-  EG_getBodyTopos(object, NULL, FACE, &nface, &faces);
-  EG_getBodyTopos(object, NULL, EDGE, &nedge, &edges);
-
-  double tol;
-  EG_tolerance(faces[src], &tol);
-
-  for (int i_edge=face_edge_idx[src]; i_edge<face_edge_idx[src+1]; i_edge++)
-  {
-    int src_edge_idx = EG_indexBodyTopo(object, face_edge[i_edge]);
-    int tgt_edge_idx = 0;
-    int tgt_edge_sign;
-
-    _find_matching_pair(pairs,
-                        pair_sign,
-                        n_pairs,
-                        src_edge_idx,
-                        &tgt_edge_idx,
-                        &tgt_edge_sign);
-
-    int mtype, oclass;
-    egObject  *edge_geom;
-    int       *edge_senses;
-    int        edge_nnode;
-    egObject **edge_nodes;
-    double     src_edge_limits[2], tgt_edge_limits[2];
-    EG_getTopology(
-      edges[src_edge_idx-1],
-      &edge_geom,
-      &oclass,
-      &mtype,
-      src_edge_limits,
-      &edge_nnode,
-      &edge_nodes,
-      &edge_senses
-    );
-
-    EG_getTopology(
-      edges[tgt_edge_idx-1],
-      &edge_geom,
-      &oclass,
-      &mtype,
-      tgt_edge_limits,
-      &edge_nnode,
-      &edge_nodes,
-      &edge_senses
-    );
-
-    double src_uv[2], tgt_uv[2];
-    EG_getEdgeUV(faces[src], edges[src_edge_idx-1], 0, src_edge_limits[0]                                         , src_uv);
-    EG_getEdgeUV(faces[tgt], edges[tgt_edge_idx-1], 0, (tgt_edge_sign>0 ? tgt_edge_limits[0] : tgt_edge_limits[1]), tgt_uv);
-
-    if (fabs(src_uv[0] - tgt_uv[0]) > tol)  uv_sens[0] = -1;
-    if (fabs(src_uv[1] - tgt_uv[1]) > tol)  uv_sens[1] = -1;
-  }
-
-  out_uv_sens[0] = uv_sens[0];
-  out_uv_sens[1] = uv_sens[1];
-
-  return EGADS_SUCCESS;
-
-}
-
-
-__HOST_AND_DEVICE__ int
-EG_periodic_paramtuv_interpolation(int dim, const double *tuv0_src, const double *tuv1_src, const double *tuv0_tgt, const double *tuv1_tgt, const double *tuv_src, double *tuv_tgt)
-{
-  if (dim > 2)
-    return EGADS_GEOMERR;
-
-  for (int i=0; i<dim; i++)
-  {
-    tuv_tgt[i] = _periodic_paramt_interpolation(tuv0_src[i], tuv1_src[i], tuv0_tgt[i], tuv1_tgt[i], tuv_src[i]);
-  }
-  return EGADS_SUCCESS;
 }
 
 
@@ -892,52 +556,29 @@ _periodize_surface_tesselation
         _print_tess2d_info(btess, tgt);
       }
 
-      int mtype, oclass;
-      egObject  *face_geom;
-      int       *face_senses;
-      int        face_nedge;
-      egObject **face_edges;
       double     src_face_limits[4], tgt_face_limits[4];
 
-      EG_getTopology(
-        faces[src],
-        &face_geom,
-        &oclass,
-        &mtype,
-        src_face_limits,
-        &face_nedge,
-        &face_edges,
-        &face_senses
-      );
+      EG_getTopoLimits(faces[src], src_face_limits);
 
       double uv0_src[2] = {src_face_limits[0], src_face_limits[2]};
       double uv1_src[2] = {src_face_limits[1], src_face_limits[3]};
 
-      EG_getTopology(
-        faces[tgt],
-        &face_geom,
-        &oclass,
-        &mtype,
-        tgt_face_limits,
-        &face_nedge,
-        &face_edges,
-        &face_senses
-      );
+      EG_getTopoLimits(faces[src], tgt_face_limits);
 
       double uv0_tgt[2] = {tgt_face_limits[0], tgt_face_limits[2]};
       double uv1_tgt[2] = {tgt_face_limits[1], tgt_face_limits[3]};
 
       int uv_sens[2];
 
-      EG_orient_uv_param(object,
-                         src,
-                         tgt,
-                         face_edge_idx,
-                         face_edge,
-                         edge_pairs_idx[i_itrf+1]-edge_pairs_idx[i_itrf],
-                         edge_pairs,
-                         edge_pairs_sign,
-                         uv_sens);
+      EG_orientUVparam(object, 
+                       src,
+                       tgt,
+                       face_edge_idx,
+                       face_edge,
+                       edge_pairs_idx[i_itrf+1]-edge_pairs_idx[i_itrf],
+                       edge_pairs,
+                       edge_pairs_sign,
+                       uv_sens);
 
       for (int i=0; i<2; i++){
         if (uv_sens[i] != 1){
@@ -962,6 +603,8 @@ _periodize_surface_tesselation
       btess->tess2d[tgt].frame  = (int    *) EG_alloc(3*btess->tess2d[src].nframe* sizeof(int));
 
 
+      double max_diff_uv[2] = {-HUGE_VAL, -HUGE_VAL};
+
       for (int i_vtx=0; i_vtx<btess->tess2d[src].npts; ++i_vtx) {
 
         // > Copy coordinate while applying transformation
@@ -973,12 +616,12 @@ _periodize_surface_tesselation
         btess->tess2d[tgt].xyz[3*i_vtx+1] = hm[4]*x + hm[5]*y + hm[ 6]*z + hm[ 7]*1.;
         btess->tess2d[tgt].xyz[3*i_vtx+2] = hm[8]*x + hm[9]*y + hm[10]*z + hm[11]*1.;
 
-        EG_periodic_paramtuv_interpolation(2,
-                                           uv0_src,
-                                           uv1_src,
-                                           uv0_tgt,
-                                           uv1_tgt,
-                                           &btess->tess2d[src].uv[2*i_vtx],
+        EG_periodic_paramtuv_interpolation(2, 
+                                           uv0_src, 
+                                           uv1_src, 
+                                           uv0_tgt, 
+                                           uv1_tgt, 
+                                           &btess->tess2d[src].uv[2*i_vtx], 
                                            &btess->tess2d[tgt].uv[2*i_vtx]);
 
         double new_coords[3];
@@ -1154,6 +797,22 @@ _periodize_surface_tesselation
   }
 
   EG_free(faces);
+}
+
+__HOST_AND_DEVICE__ int
+EG_periodic_paramtuv_interpolation(int dim, const double *tuv0_src, const double *tuv1_src,
+                                            const double *tuv0_tgt, const double *tuv1_tgt,
+                                            const double *tuv_src,        double *tuv_tgt)
+{
+  if (dim > 2)
+    return EGADS_GEOMERR;
+
+  for (int i=0; i<dim; i++)
+  {
+    double s_src = (tuv_src[i]-tuv0_src[i]) / (tuv1_src[i]-tuv0_src[i]);
+    tuv_tgt[i] = s_src * (tuv1_tgt[i]-tuv0_tgt[i]) + tuv0_tgt[i];
+  }
+  return EGADS_SUCCESS;
 }
 
 

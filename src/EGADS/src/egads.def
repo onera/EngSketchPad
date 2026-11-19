@@ -83,6 +83,7 @@ EG_getTolerance
 EG_setTolerance
 EG_delSmallEdges
 EG_getTopology
+EG_getTopoLimits
 EG_makeTopology
 EG_makeTopology_dot
 EG_makeLoop
@@ -132,7 +133,7 @@ EG_makeTessGeom
 EG_getTessGeom
 EG_makeTessBody
 EG_makePeriodicTessBody
-EG_orient_uv_param
+EG_orientUVparam
 EG_periodic_paramtuv_interpolation
 EG_remakeTess
 EG_finishTess

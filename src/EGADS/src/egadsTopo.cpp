@@ -79,6 +79,7 @@ public:
                                    int *oclass, int *type,
                                    /*@null@*/ double *limits, int *nChildren,
                                    egObject ***children, int **senses );
+  extern "C" int  EG_getETopoLimits( const egObject *topo, double *limits);  
   extern "C" int  EG_getEBodyTopos( const egObject *body,
                                     /*@null@*/ egObject *src, int oclass,
                                     int *ntopo, /*@null@*/ egObject ***topos );
@@ -101,6 +102,7 @@ public:
                                   int *oclass, int *type,
                                   /*@null@*/ double *limits, int *nChildren,
                                   egObject ***children, int **senses );
+  extern "C" int  EG_getTopoLimits(const egObject *topo, double *limits);
   extern "C" int  EG_makeTopology( egObject *context, /*@null@*/ egObject *geom,
                                    int oclass, int mtype,
                                    /*@null@*/ double *limits,
@@ -132,6 +134,10 @@ public:
                                double *box );
   extern "C" int  EG_getUVinfo( egObject *face, egObject *loop, double *box,
                                 double *area );
+  extern "C" int  EG_orientUVparam(egObject *object, int src, int tgt,
+                                   int *face_edge_idx, egObject **face_edge,
+                                   int n_pairs, int *pairs, int *pairs_sign,
+                                   int out_uv_sens[2]);
   extern "C" int  EG_getBodyTopos( const egObject *body, /*@null@*/ egObject *src,
                                    int oclass, int *ntopo,
                                    /*@null@*/ egObject ***topos );
@@ -3353,6 +3359,101 @@ EG_getTopology(const egObject *topo, egObject **geom, int *oclass,
                egObject ***children, int **senses);
 
 
+int
+EG_getTopoLimits(const egObject *topo, double *limits)
+{
+  if (topo == NULL)               return EGADS_NULLOBJ;
+  if (topo->magicnumber != MAGIC) return EGADS_NOTOBJ;
+  if (topo->oclass > MODEL)       return EG_getETopoLimits(topo, limits);
+  if (topo->oclass < NODE)        return EGADS_NOTTOPO;
+
+  if (topo->oclass == NODE) {
+
+    egadsNode *pnode = (egadsNode *) topo->blind;
+    if ((limits != NULL) && (pnode != NULL)) {
+      limits[0] = pnode->xyz[0];
+      limits[1] = pnode->xyz[1];
+      limits[2] = pnode->xyz[2];
+    }
+
+  } else if (topo->oclass == EDGE) {
+
+    egadsEdge *pedge = (egadsEdge *) topo->blind;
+    if (pedge != NULL) {
+      if (limits != NULL)
+        BRep_Tool::Range(pedge->edge, limits[0], limits[1]);
+    }
+
+  } else if (topo->oclass == FACE) {
+
+    egadsFace *pface = (egadsFace *) topo->blind;
+    if (pface != NULL) {
+      if (limits != NULL) {
+        Standard_Real umin, umax, vmin, vmax;
+
+        BRepTools::UVBounds(pface->face, umin, umax, vmin, vmax);
+        limits[0] = umin;
+        limits[1] = umax;
+        limits[2] = vmin;
+        limits[3] = vmax;
+      }
+    }
+
+  } else {
+
+    return EGADS_TOPOERR;
+
+  }
+
+  return EGADS_SUCCESS;
+}
+
+
+template<int N>
+int
+EG_getTopoLimits(const egObject *topo, SurrealS<N> *limits)
+{
+  int stat = EGADS_SUCCESS;
+  double lims[4];
+
+  stat = EG_getTopoLimits(topo, lims);
+  if (stat != EGADS_SUCCESS) return stat;
+
+  if (topo->oclass == NODE) {
+
+    egadsNode *pnode = (egadsNode *) topo->blind;
+    if (pnode->filled == 0) return EGADS_NODATA;
+
+    limits[0] = pnode->xyz_dot[0];
+    limits[1] = pnode->xyz_dot[1];
+    limits[2] = pnode->xyz_dot[2];
+  } else if (topo->oclass == EDGE) {
+
+    egadsEdge *pedge = (egadsEdge *) topo->blind;
+    if (pedge != NULL && limits != NULL) {
+      if (pedge->filled == 0) return EGADS_NODATA;
+
+      limits[0] = pedge->trange_dot[0];
+      limits[1] = pedge->trange_dot[1];
+    }
+  } else if (topo->oclass == FACE) {
+
+    egadsFace *pface = (egadsFace *) topo->blind;
+    if (pface != NULL && limits != NULL) {
+      limits[0] = pface->urange[0];
+      limits[1] = pface->urange[1];
+      limits[2] = pface->vrange[0];
+      limits[3] = pface->vrange[1];
+    }
+  }
+
+  return stat;
+}
+template int
+EG_getTopoLimits(const egObject *topo, SurrealS<1> *limits);
+
+
+
 static void
 EG_makePCurves(TopoDS_Face& face, egObject *surfo, egObject *loopo, int itry = 0)
 {
@@ -6076,6 +6177,60 @@ EG_getUVinfo(egObject *surface, egObject *loop, double *box, double *area)
   *area = ShapeAnalysis::TotCross2D(seWire, Face);
 
   return EGADS_SUCCESS;
+}
+
+
+int
+EG_orientUVparam(egObject *object, int src, int tgt, int *face_edge_idx, egObject **face_edge, int n_pairs, int *pairs, int *pairs_sign, int out_uv_sens[2])
+{
+  
+  int uv_sens[2] = {1, 1};
+
+  int nface=0, nedge=0;
+  egObject **faces, **edges;
+
+  EG_getBodyTopos(object, NULL, FACE, &nface, &faces);
+  EG_getBodyTopos(object, NULL, EDGE, &nedge, &edges);
+
+  double tol;
+  EG_tolerance(faces[src], &tol);
+
+  for (int i_edge=face_edge_idx[src]; i_edge<face_edge_idx[src+1]; ++i_edge)
+  {
+    int src_edge_idx = EG_indexBodyTopo(object, face_edge[i_edge]);
+    int tgt_edge_idx = 0;
+    int tgt_edge_sign;
+
+    for (int i_pair=0; i_pair<n_pairs; ++i_pair) {
+      if (pairs[2*i_pair]==src_edge_idx) {
+        tgt_edge_idx  = pairs[2*i_pair+1];
+        tgt_edge_sign = pairs_sign[i_pair];
+      }
+    }
+
+    int mtype, oclass;
+    egObject  *edge_geom;
+    int       *edge_senses;
+    int        edge_nnode;
+    egObject **edge_nodes;
+    double     src_edge_limits[2], tgt_edge_limits[2];
+
+    EG_getTopoLimits(edges[src_edge_idx-1], src_edge_limits);
+    EG_getTopoLimits(edges[tgt_edge_idx-1], tgt_edge_limits);
+
+    double src_uv[2], tgt_uv[2];
+    EG_getEdgeUV(faces[src], edges[src_edge_idx-1], 0, src_edge_limits[0]                                         , src_uv);
+    EG_getEdgeUV(faces[tgt], edges[tgt_edge_idx-1], 0, (tgt_edge_sign>0 ? tgt_edge_limits[0] : tgt_edge_limits[1]), tgt_uv);
+
+    if (fabs(src_uv[0] - tgt_uv[0]) > tol)  uv_sens[0] = -1;
+    if (fabs(src_uv[1] - tgt_uv[1]) > tol)  uv_sens[1] = -1;
+  }
+
+  out_uv_sens[0] = uv_sens[0];
+  out_uv_sens[1] = uv_sens[1];
+
+  return EGADS_SUCCESS;
+
 }
 
 
@@ -12435,7 +12590,7 @@ EG_periodize_model
   egObject  **out_model
 )
 {
-  int debug_verbose = 0;
+  int debug_verbose = 1;
   int stat = EGADS_SUCCESS;
 
   if (dim!=2 && dim !=3) {

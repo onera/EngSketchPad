@@ -956,6 +956,44 @@ EG_getETopology(const egObject *topo, egObject **geom, int *oclass,
 
 
 __HOST_AND_DEVICE__ int
+EG_getETopoLimits(const egObject *topo, double *range)
+{
+  egEBody  *ebody;
+  egEShell *eshell;
+  egEFace  *eface;
+  egELoop  *eloop;
+  egEEdge  *eedge;
+  egTessel *btess;
+
+  if (topo == NULL)               return EGADS_NULLOBJ;
+  if (topo->magicnumber != MAGIC) return EGADS_NOTOBJ;
+  if (topo->blind == NULL)        return EGADS_NODATA;
+  if (topo->oclass < EEDGE)       return EGADS_NOTTOPO;
+  if (topo->oclass > EBODY)       return EGADS_NOTTOPO;
+  
+  if (topo->oclass == EEDGE) {
+    eedge = (egEEdge *) topo->blind;
+    if (range != NULL) {
+      range[0] = eedge->trange[0];
+      range[1] = eedge->trange[1];
+    }
+  } else if (topo->oclass == EFACE) {
+    eface      = (egEFace *) topo->blind;
+    if (range != NULL) {
+      range[0] = eface->range[0];
+      range[1] = eface->range[1];
+      range[2] = eface->range[2];
+      range[3] = eface->range[3];
+    }
+  } else {
+    return EGADS_TOPOERR;
+  }
+  
+  return EGADS_SUCCESS;
+}
+
+
+__HOST_AND_DEVICE__ int
 EG_getEBodyTopos(const egObject *body, /*@null@*/ egObject *src,
                  int oclass, int *ntopo, /*@null@*/ egObject ***topos)
 {
