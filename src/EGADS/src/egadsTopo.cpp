@@ -134,10 +134,10 @@ public:
                                double *box );
   extern "C" int  EG_getUVinfo( egObject *face, egObject *loop, double *box,
                                 double *area );
-  extern "C" int  EG_orientUVparam(egObject *object, int src, int tgt,
-                                   int *face_edge_idx, egObject **face_edge,
-                                   int n_pairs, int *pairs, int *pairs_sign,
-                                   int out_uv_sens[2]);
+  extern "C" int  EG_findUVRelativeOrientation( egObject *object, int src, int tgt,
+                                                int *face_edge_idx, egObject **face_edge,
+                                                int n_pairs, int *pairs, int *pairs_sign,
+                                                int out_uv_sens[2] );
   extern "C" int  EG_getBodyTopos( const egObject *body, /*@null@*/ egObject *src,
                                    int oclass, int *ntopo,
                                    /*@null@*/ egObject ***topos );
@@ -6179,9 +6179,22 @@ EG_getUVinfo(egObject *surface, egObject *loop, double *box, double *area)
   return EGADS_SUCCESS;
 }
 
-
+/*
+ * Determine if parametric coordinates of a src face and its periodic tgt face are in the same direction
+ *
+ * Args:
+ *   object        : Topology body
+ *   src           : index of a face
+ *   tgt           : index of the periodic face
+ *   face_edge_idx : face->edge connectivity index
+ *   face_edge     : face->edge connectivity
+ *   n_pairs       : number of edge pairs in the object
+ *   pairs         : edge pairing in the object
+ *   pairs_sign    : sign of the edge pairing
+ *   out_uv_sens   : sign of the tgt face pair
+ */
 int
-EG_orientUVparam(egObject *object, int src, int tgt, int *face_edge_idx, egObject **face_edge, int n_pairs, int *pairs, int *pairs_sign, int out_uv_sens[2])
+EG_findUVRelativeOrientation(egObject *object, int src, int tgt, int *face_edge_idx, egObject **face_edge, int n_pairs, int *pairs, int *pairs_sign, int out_uv_sens[2])
 {
   
   int uv_sens[2] = {1, 1};
@@ -6208,12 +6221,7 @@ EG_orientUVparam(egObject *object, int src, int tgt, int *face_edge_idx, egObjec
       }
     }
 
-    int mtype, oclass;
-    egObject  *edge_geom;
-    int       *edge_senses;
-    int        edge_nnode;
-    egObject **edge_nodes;
-    double     src_edge_limits[2], tgt_edge_limits[2];
+    double src_edge_limits[2], tgt_edge_limits[2];
 
     EG_getTopoLimits(edges[src_edge_idx-1], src_edge_limits);
     EG_getTopoLimits(edges[tgt_edge_idx-1], tgt_edge_limits);
@@ -12590,7 +12598,7 @@ EG_periodize_model
   egObject  **out_model
 )
 {
-  int debug_verbose = 1;
+  int debug_verbose = 0;
   int stat = EGADS_SUCCESS;
 
   if (dim!=2 && dim !=3) {

@@ -135,10 +135,10 @@ EG_compute_edge_pairs_from_node_pairs(egObject *object, int n_itrf, int *face_pa
                                       int *face_edge_idx, egObject **face_edge,
                                       int **edge_pairs_idx_out, int **edge_pairs_out, int **edge_pairs_sign_out);
 __PROTO_H_AND_D__ int
-EG_orientUVparam(egObject *object, int src, int tgt,
-                 int *face_edge_idx, egObject **face_edge,
-                 int n_pairs, int *pairs, int *pairs_sign,
-                 int out_uv_sens[2]);
+EG_findUVRelativeOrientation(egObject *object, int src, int tgt,
+                             int *face_edge_idx, egObject **face_edge,
+                             int n_pairs, int *pairs, int *pairs_sign,
+                             int out_uv_sens[2]);
 
 #ifndef LITE
            extern int  EG_fullAttrs( const egObject *obj );
@@ -168,23 +168,9 @@ __PROTO_H_AND_D__ int  EG_mapSequen( egObject *src, egObject *dst,
                                      egObject **result );
 #endif
 
-__HOST_AND_DEVICE__ int EG_periodic_paramtuv_interpolation(int dim, const double *tuv0_src, const double *tuv1_src,
-                                                                    const double *tuv0_tgt, const double *tuv1_tgt,
-                                                                    const double *tuv_src,         double *tuv_tgt);
-
-
-static inline
-double
-_DOT_PRODUCT
-(
-  double vect1[3],
-  double vect2[3]
-)
-{
-  return vect1[0] * vect2[0] +
-         vect1[1] * vect2[1] +
-         vect1[2] * vect2[2];
-}
+__HOST_AND_DEVICE__ int EG_periodicParamTUVInterpolation( int dim, const double *tuv0_src, const double *tuv1_src,
+                                                                   const double *tuv0_tgt, const double *tuv1_tgt,
+                                                                   const double *tuv_src,         double *tuv_tgt );
 
 
 static
@@ -458,10 +444,10 @@ _periodize_edge_tesselation
         btess->tess1d[tgt].xyz[3*tgt_i_vtx+1] = hm[4]*x + hm[5]*y + hm[ 6]*z + hm[ 7]*1.;
         btess->tess1d[tgt].xyz[3*tgt_i_vtx+2] = hm[8]*x + hm[9]*y + hm[10]*z + hm[11]*1.;
 
-        EG_periodic_paramtuv_interpolation(1, &t0_src, &t1_src,
-                                              &t0_tgt, &t1_tgt,
-                                              &btess->tess1d[src].t[i_vtx],
-                                              &btess->tess1d[tgt].t[tgt_i_vtx]);
+        EG_periodicParamTUVInterpolation(1, &t0_src, &t1_src,
+                                            &t0_tgt, &t1_tgt,
+                                            &btess->tess1d[src].t[i_vtx],
+                                            &btess->tess1d[tgt].t[tgt_i_vtx]);
 
         // > Here coord is exact and t approximate, so we try to fix t but we do not update coords (maybe its an ISSUE ??)
         double dummy_new_coords[3];
@@ -570,15 +556,15 @@ _periodize_surface_tesselation
 
       int uv_sens[2];
 
-      EG_orientUVparam(object, 
-                       src,
-                       tgt,
-                       face_edge_idx,
-                       face_edge,
-                       edge_pairs_idx[i_itrf+1]-edge_pairs_idx[i_itrf],
-                       edge_pairs,
-                       edge_pairs_sign,
-                       uv_sens);
+      EG_findUVRelativeOrientation(object,
+                                   src,
+                                   tgt,
+                                   face_edge_idx,
+                                   face_edge,
+                                   edge_pairs_idx[i_itrf+1]-edge_pairs_idx[i_itrf],
+                                   edge_pairs,
+                                   edge_pairs_sign,
+                                   uv_sens);
 
       for (int i=0; i<2; i++){
         if (uv_sens[i] != 1){
@@ -603,8 +589,6 @@ _periodize_surface_tesselation
       btess->tess2d[tgt].frame  = (int    *) EG_alloc(3*btess->tess2d[src].nframe* sizeof(int));
 
 
-      double max_diff_uv[2] = {-HUGE_VAL, -HUGE_VAL};
-
       for (int i_vtx=0; i_vtx<btess->tess2d[src].npts; ++i_vtx) {
 
         // > Copy coordinate while applying transformation
@@ -616,11 +600,8 @@ _periodize_surface_tesselation
         btess->tess2d[tgt].xyz[3*i_vtx+1] = hm[4]*x + hm[5]*y + hm[ 6]*z + hm[ 7]*1.;
         btess->tess2d[tgt].xyz[3*i_vtx+2] = hm[8]*x + hm[9]*y + hm[10]*z + hm[11]*1.;
 
-        EG_periodic_paramtuv_interpolation(2, 
-                                           uv0_src, 
-                                           uv1_src, 
-                                           uv0_tgt, 
-                                           uv1_tgt, 
+        EG_periodicParamTUVInterpolation(2, uv0_src, uv1_src,
+                                            uv0_tgt, uv1_tgt,
                                            &btess->tess2d[src].uv[2*i_vtx], 
                                            &btess->tess2d[tgt].uv[2*i_vtx]);
 
@@ -799,19 +780,34 @@ _periodize_surface_tesselation
   EG_free(faces);
 }
 
-__HOST_AND_DEVICE__ int
-EG_periodic_paramtuv_interpolation(int dim, const double *tuv0_src, const double *tuv1_src,
-                                            const double *tuv0_tgt, const double *tuv1_tgt,
-                                            const double *tuv_src,        double *tuv_tgt)
-{
-  if (dim > 2)
-    return EGADS_GEOMERR;
 
-  for (int i=0; i<dim; i++)
-  {
+/*
+ * Knowing the parametric coordinates limits of a topology object and its periodic topology object,
+ * compute the parametric coordinates in the periodic topology given the one in the source topology.
+ *
+ * Args :
+ *   dim      : dimension of th topology
+ *   tuv0_src : parametric coordiante min of the topology
+ *   tuv1_src : parametric coordiante max of the topology
+ *   tuv0_tgt : parametric coordinate associated to tuv0_src of the periodic topology (this is not necessarily the min)
+ *   tuv1_tgt : parametric coordinate associated to tuv1_src of the periodic topology (this is not necessarily the max)
+ *   tuv_src  : parametric coordinate in the topology
+ *   tuv_tgt  : computed parametric coordinate in the periodic topology
+ */
+__HOST_AND_DEVICE__ int
+EG_periodicParamTUVInterpolation(int dim, const double *tuv0_src, const double *tuv1_src,
+                                          const double *tuv0_tgt, const double *tuv1_tgt,
+                                          const double *tuv_src,        double *tuv_tgt)
+{
+  if (dim > 2){
+    return EGADS_GEOMERR;
+  }
+
+  for (int i=0; i<dim; i++){
     double s_src = (tuv_src[i]-tuv0_src[i]) / (tuv1_src[i]-tuv0_src[i]);
     tuv_tgt[i] = s_src * (tuv1_tgt[i]-tuv0_tgt[i]) + tuv0_tgt[i];
   }
+
   return EGADS_SUCCESS;
 }
 

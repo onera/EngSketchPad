@@ -133,8 +133,8 @@ EG_makeTessGeom
 EG_getTessGeom
 EG_makeTessBody
 EG_makePeriodicTessBody
-EG_orientUVparam
-EG_periodic_paramtuv_interpolation
+EG_findUVRelativeOrientation
+EG_periodicParamTUVInterpolation
 EG_remakeTess
 EG_finishTess
 EG_mapTessBody
