@@ -786,7 +786,7 @@ _periodize_surface_tesselation
  * compute the parametric coordinates in the periodic topology given the one in the source topology.
  *
  * Args :
- *   dim      : dimension of th topology
+ *   dim      : dimension of the topology
  *   tuv0_src : parametric coordiante min of the topology
  *   tuv1_src : parametric coordiante max of the topology
  *   tuv0_tgt : parametric coordinate associated to tuv0_src of the periodic topology (this is not necessarily the min)
