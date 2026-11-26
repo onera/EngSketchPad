@@ -6182,6 +6182,8 @@ EG_getUVinfo(egObject *surface, egObject *loop, double *box, double *area)
 /*
  * Determine if parametric coordinates of a src face and its periodic tgt face are in the same direction
  *
+ * Note : the parametric coordinates limit of src and tgt may need to be the same.
+ *
  * Args:
  *   object        : Topology body
  *   src           : index of a face
@@ -6232,10 +6234,17 @@ EG_findUVRelativeOrientation(egObject *object, int src, int tgt, int *face_edge_
 
     if (fabs(src_uv[0] - tgt_uv[0]) > tol)  uv_sens[0] = -1;
     if (fabs(src_uv[1] - tgt_uv[1]) > tol)  uv_sens[1] = -1;
+
+    if (uv_sens[0]==-1 && uv_sens[1]==-1){
+      break;
+    }
   }
 
   out_uv_sens[0] = uv_sens[0];
   out_uv_sens[1] = uv_sens[1];
+
+  free(faces);
+  free(edges);
 
   return EGADS_SUCCESS;
 
