@@ -157,6 +157,7 @@ __ProtoExt__ int  EG_setTolerance(       ego topo, double  tol );
 __ProtoExt__ int  EG_getTopology( const ego topo, ego *geom, int *oclass,
                                   int *type, /*@null@*/ double *limits,
                                   int *nChildren, ego **children, int **sense );
+__ProtoExt__ int  EG_getTopoLimits( const ego topo, double *limits );
 __ProtoExt__ int  EG_makeTopology( ego context, /*@null@*/ ego geom, int oclass,
                                    int mtype, /*@null@*/ double *limits,
                                    int nChildren, /*@null@*/ ego *children,
@@ -284,6 +285,10 @@ __ProtoExt__ int  EG_saveTess( ego tess, const char *name );
 __ProtoExt__ int  EG_loadTess( ego body, const char *name, ego *tess );
 
 __ProtoExt__ int  EG_tessMassProps( const ego tess, double *props );
+
+__ProtoExt__ int  EG_findUVRelativeOrientation(egObject *object, int src, int tgt, int *face_edge_idx, egObject **face_edge, int n_pairs, int *pairs, int *pair_sign, int out_uv_sens[2]);
+
+__ProtoExt__ int  EG_periodicParamTUVInterpolation( int dim, const double *tuv0_src, const double *tuv1_src, const double *tuv0_tgt, const double *tuv1_tgt, const double *tuv_src, double *tuv_tgt);
 
 /* top down build functions */
 
